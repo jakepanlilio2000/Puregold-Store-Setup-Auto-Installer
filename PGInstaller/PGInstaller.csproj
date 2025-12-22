@@ -18,7 +18,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Converter\" />
+    <Folder Include="assets\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="assets\assets.zip">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

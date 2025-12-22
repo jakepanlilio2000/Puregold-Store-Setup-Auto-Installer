@@ -1,31 +1,29 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using System;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression; 
+using System.IO.Compression;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using Microsoft.Win32;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace PGInstaller.Viewmodel
 {
     public partial class MainViewModel : ObservableObject
     {
-        // Data Properties
-        [ObservableProperty]
-        private string? _logOutput;
+        [ObservableProperty] private string? _logOutput;
+        [ObservableProperty] private bool _isBusy;
+        [ObservableProperty] private string? _selectedDepartment;
 
-        [ObservableProperty]
-        private bool _isBusy;
+        private string _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
-        [ObservableProperty]
-        private string? _selectedDepartment;
+        public ObservableCollection<string> PreviewList { get; } = new ObservableCollection<string>();
 
         public ObservableCollection<string> Departments { get; } = new ObservableCollection<string>
         {
             "IT", "HRD", "ICD", "Payables", "Creative", "Admin", "Audit",
-            "Store Operations (Manager)", "Store Operations (Customer Service)", "Store Operations (Gcash)", "Store Operations (HBC)", "Receiving", "Treasury"
+            "Store Operations (Manager)", "Store Operations (Customer Service)",
+            "Store Operations (Gcash)", "Store Operations (HBC)", "Receiving", "Treasury",
         };
 
         public MainViewModel()
@@ -39,54 +37,30 @@ namespace PGInstaller.Viewmodel
         {
             if (IsBusy) return;
             IsBusy = true;
-            LogOutput = ""; 
+            LogOutput = "";
             Log("------------------------------------------------");
             Log($"Starting Installation for: {SelectedDepartment}");
 
             try
             {
-
                 await PrepareAssets();
-                await EnsureWinget();
 
                 switch (SelectedDepartment)
                 {
-                    case "IT":
-                        await InstallITPackage();
-                        break;
-                    case "HRD":
-                        await InstallHRDPackage();
-                        break;
-                    case "ICD":
-                        await InstallICDPackage();
-                        break;
-                    case "Payables":
-                        await InstallPayablesPackage();
-                        break;
-                    case "Admin":
-                        await InstallAdminPackage();
-                        break;
-                    case "Audit":
-                        await InstallAuditPackage();
-                        break;
-                    case "Store Operations (Manager)":
-                        await InstallStoreOperationsPackage("Manager");
-                        break;
-                    case "Store Operations (Customer Service)":
-                        await InstallStoreOperationsPackage("Customer Service");
-                        break;
-                    case "Store Operations (Gcash)":
-                        await InstallStoreOperationsPackage("Gcash");
-                        break;
-                    case "Store Operations (HBC)":
-                        await InstallStoreOperationsPackage("HBC");
-                        break;
-                    case "Creative":
-                        await InstallCreativePackage();
-                        break;
-                    default:
-                        Log("No specific package defined for this department yet.");
-                        break;
+                    case "IT": await InstallITPackage(); break;
+                    case "HRD": await InstallHRDPackage(); break;
+                    case "ICD": await InstallICDPackage(); break;
+                    case "Payables": await InstallPayablesPackage(); break;
+                    case "Admin": await InstallAdminPackage(); break;
+                    case "Audit": await InstallAuditPackage(); break;
+                    case "Store Operations (Manager)": await InstallStoreOperationsPackage("Manager"); break;
+                    case "Store Operations (Customer Service)": await InstallStoreOperationsPackage("Customer Service"); break;
+                    case "Store Operations (Gcash)": await InstallStoreOperationsPackage("Gcash"); break;
+                    case "Store Operations (HBC)": await InstallStoreOperationsPackage("HBC"); break;
+                    case "Creative": await InstallCreativePackage(); break;
+                    case "Receiving": await InstallReceivingPackage(); break;
+                    case "Treasury": await InstallTreasuryPackage(); break;
+                    default: Log("No specific package defined for this department yet."); break;
                 }
             }
             catch (Exception ex)
@@ -100,21 +74,95 @@ namespace PGInstaller.Viewmodel
                 Log("Process Completed.");
             }
         }
+        private async Task SmartInstall(string appName, string offlineExe, string offlineArgs = "/silent", string? checkName = null)
+        {
+            if (!string.IsNullOrEmpty(checkName))
+            {
+                if (IsAppInstalled(checkName))
+                {
+                    Log($"   [SKIP] {appName} is already installed.");
+                    return;
+                }
+            }
+            string installerPath = Path.Combine(_assetsPath, offlineExe);
+
+            if (File.Exists(installerPath))
+            {
+                if (offlineExe.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                {
+                    string msiArgs = $"/i \"{installerPath}\" {offlineArgs}";
+                    await RunProcessAsync("msiexec.exe", msiArgs, $"[OFFLINE] Installing {appName} (MSI)");
+                }
+                else
+                {
+                    await RunProcessAsync(installerPath, offlineArgs, $"[OFFLINE] Installing {appName}");
+                }
+            }
+            else
+            {
+                Log($"   [SKIP] Installer missing: {offlineExe}");
+            }
+        }
+        private bool IsAppInstalled(string partialName)
+        {
+            string? displayName;
+            RegistryKey? key;
+            List<string> registryPaths = new List<string>()
+            {
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+            };
+
+            foreach (var path in registryPaths)
+            {
+                try
+                {
+                    using (key = Registry.LocalMachine.OpenSubKey(path))
+                    {
+                        if (key != null)
+                        {
+                            foreach (var subkeyName in key.GetSubKeyNames())
+                            {
+                                using (var subkey = key.OpenSubKey(subkeyName))
+                                {
+                                    displayName = subkey?.GetValue("DisplayName") as string;
+                                    if (!string.IsNullOrEmpty(displayName) &&
+                                        displayName.Contains(partialName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+            return false;
+        }
 
         private async Task PrepareAssets()
         {
-            string assetsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
-            string zipFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets.zip");
+            string localAssets = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
-            if (!Directory.Exists(assetsDir))
+            if (File.Exists(Path.Combine(localAssets, "Chrome.exe")) || File.Exists(Path.Combine(localAssets, "7z.exe")))
             {
-                if (File.Exists(zipFile))
+                _assetsPath = localAssets;
+                Log($"   [INIT] Using Local Assets folder: {_assetsPath}");
+                return;
+            }
+            string zipFile = Path.Combine(localAssets, "assets.zip");
+            if (File.Exists(zipFile))
+            {
+                string tempRoot = Path.Combine(Path.GetTempPath(), "PGInstaller_Assets");
+                if (!Directory.Exists(tempRoot) || !File.Exists(Path.Combine(tempRoot, "7z.exe")))
                 {
-                    Log("   [INFO] Assets folder missing. Extracting Assets.zip...");
+                    Log("   [INFO] Extracting Assets.zip to Temp folder...");
                     try
                     {
-                       
-                        await Task.Run(() => ZipFile.ExtractToDirectory(zipFile, AppDomain.CurrentDomain.BaseDirectory));
+                        if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true);
+                        Directory.CreateDirectory(tempRoot);
+                        await Task.Run(() => ZipFile.ExtractToDirectory(zipFile, tempRoot));
                         Log("   [SUCCESS] Extraction complete.");
                     }
                     catch (Exception ex)
@@ -122,185 +170,55 @@ namespace PGInstaller.Viewmodel
                         Log($"   [ERROR] Failed to extract assets: {ex.Message}");
                     }
                 }
-                else
-                {
-                    Log("   [WARNING] 'Assets' folder AND 'Assets.zip' are missing. Local file installations will fail.");
-                }
+
+                string subAssets = Path.Combine(tempRoot, "Assets");
+                _assetsPath = Directory.Exists(subAssets) ? subAssets : tempRoot;
+                Log($"   [INIT] Using Temp Assets: {_assetsPath}");
             }
             else
             {
-                Log("   [INFO] Assets folder detected. Proceeding...");
+                _assetsPath = localAssets;
+                Log("   [WARNING] No installers found (Checked Local and Zip).");
             }
         }
 
-        #region All Departments Common Installation
+        #region Package Implementations
+
         private async Task InstallCommonPackages()
         {
-            await RunWingetInstall("Google.Chrome", "Google Chrome");
-            await RunWingetInstall("Mozilla.Firefox", "Mozilla Firefox");
-            await RunWingetInstall("7zip.7zip", "7-Zip");
-            await RunWingetInstall("Notepad++.Notepad++", "Notepad++");
-            await RunWingetInstall("Thunderbird.Thunderbird", "Mozilla Thunderbird");
+            await SmartInstall("Google Chrome", "Chrome.exe", "/silent /install", "Google Chrome");
+            await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms -ma", "Mozilla Firefox");
+            await SmartInstall("7-Zip", "7z.exe", "/S", "7-Zip");
+            await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
+            await SmartInstall("Mozilla Thunderbird", "Thunderbird.exe", "-ms -ma", "Thunderbird");
+            await SmartInstall("Oracle Java Runtime", "jre.exe", "/s", "Java");
+            await SmartInstall("VLC", "vlc.exe", "/S", "VLC media player");
+            await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
 
-
-        }
-        #endregion
-
-        #region IT Department Installation
-        private async Task InstallITPackage()
-        {
-            await InstallCommonPackages();
-            await RunWingetInstall("Zoom.Zoom", "Zoom");
-
-            if (await RunWingetInstall("PuTTY.PuTTY", "PuTTY"))
+            string aioPath = Path.Combine(_assetsPath, "vcredist_aio.exe");
+            if (File.Exists(aioPath))
             {
-                string regFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "putty_settings.reg");
-                if (File.Exists(regFile))
+                if (IsAppInstalled("Microsoft Visual C++ 2015-2022"))
                 {
-                    await RunProcessAsync("reg", $"import \"{regFile}\"", "Applying PuTTY Settings");
+                    Log("   [SKIP] VC++ Runtimes (2015-2022) are already installed.");
                 }
                 else
                 {
-                    Log($"   [INFO] Custom PuTTY settings file not found at: {regFile}");
-                }
-            }
-
-            string radminInstaller = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Radmin_Server.exe");
-            if (File.Exists(radminInstaller))
-            {
-                await RunProcessAsync(radminInstaller, "/silence", "Installing Radmin Server");
-
-                string sourcePbr = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "radmin.pbr");
-                string destPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Radmin", "radmin.pbr"); // Usually ProgramData
-
-                if (File.Exists(sourcePbr))
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                        File.Copy(sourcePbr, destPath, true);
-                        Log("   [SUCCESS] Radmin configuration applied.");
-                    }
-                    catch (Exception ex) { Log($"   [ERROR] Failed to copy Radmin config: {ex.Message}"); }
+                    await RunProcessAsync(aioPath, "/y", "Installing VC++ Runtimes (2005-2026 AIO)");
                 }
             }
             else
             {
-                Log($"   [INFO] Radmin installer not found in Assets (Skipped).");
+                Log("   [SKIP] vcredist_aio.exe not found.");
             }
         }
-        #endregion
-
-        #region HRD Department Installation
-        private async Task InstallHRDPackage()
-        {
-            await RunProcessAsync("dism", "/online /enable-feature /featurename:NetFX3 /all /NoRestart", "Enabling .NET Framework 3.5");
-            await InstallCommonPackages();
-        }
 
         #endregion
 
-        #region Admin Department Installation
-        private async Task InstallAdminPackage()
-        {
-           Log("   [INFO] No specific installations defined for Admin Department yet.");
-            await InstallCommonPackages();
-        }
-        #endregion
-
-        #region Audit Department Installation
-
-        private async Task InstallAuditPackage()
-        {
-           Log("   [INFO] No specific installations defined for Audit Department yet.");
-            await InstallCommonPackages();
-        }
-
-        #endregion
-
-        #region Payables Department Installation
-        private async Task InstallPayablesPackage()
-        {
-           Log("   [INFO] No specific installations defined for Payables Department yet.");
-            await InstallCommonPackages();
-        }
-
-        #endregion
-
-        #region Creative Department Installation
-        private async Task InstallCreativePackage()
-        {
-           Log("   [INFO] No specific installations defined for Creative Department yet.");
-            await InstallCommonPackages();
-        }
-        #endregion
-
-        #region Store Operations Department Installation
-        private async Task InstallStoreOperationsPackage(string role)
-        {
-           Log($"   [INFO] No specific installations defined for Store Operations - {role} yet.");
-           await InstallCommonPackages();
-
-            if (role == "Manager")
-            {
-                await RunWingetInstall("Microsoft.Teams", "Microsoft Teams");
-            }
-            if (role == "Customer Service")
-            {
-                await RunWingetInstall("Zoom.Zoom", "Zoom");
-            }
-            if (role == "Gcash")
-            {
-                await RunWingetInstall("GitHub.cli", "GitHub CLI");
-            }
-            if (role == "HBC")
-            {
-                await RunWingetInstall("SlackTechnologies.Slack", "Slack");
-            }
-
-        }
-        #endregion
-
-        #region Receiving Department Installation
-        private async Task InstallReceivingPackage()
-        {
-           Log("   [INFO] No specific installations defined for Receiving Department yet.");
-            await InstallCommonPackages();
-        }
-        #endregion
-
-        #region Treasury Department Installation
-        private async Task InstallTreasuryPackage()
-        {
-           Log("   [INFO] No specific installations defined for Treasury Department yet.");
-            await InstallCommonPackages();
-        }
-        #endregion
-
-        #region ICD Department Installation
-        private async Task InstallICDPackage()
-        {
-           Log("   [INFO] No specific installations defined for ICD Department yet.");
-            await InstallCommonPackages();
-        }
-        #endregion
-
-        #region Winget Helpers
-        private async Task EnsureWinget()
-        {
-            await RunProcessAsync("winget", "-v", "Checking Winget");
-        }
-
-        private async Task<bool> RunWingetInstall(string id, string appName)
-        {
-            string args = $"install --id {id} -e --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity";
-            return await RunProcessAsync("winget", args, $"Installing {appName}");
-        }
-
-        private async Task<bool> RunProcessAsync(string fileName, string arguments, string description)
+        #region Helpers
+        private async Task<bool> RunProcessAsync(string fileName, string arguments, string description, bool suppressError = false)
         {
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
-
             var tcs = new TaskCompletionSource<bool>();
             var process = new Process
             {
@@ -312,34 +230,23 @@ namespace PGInstaller.Viewmodel
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
                 },
-                EnableRaisingEvents = true
+                EnableRaisingEvents = true,
             };
 
-            process.OutputDataReceived += (s, e) =>
+            void OnDataReceived(object s, DataReceivedEventArgs e)
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
                     string? cleanLine = CleanLogLine(e.Data);
                     if (!string.IsNullOrEmpty(cleanLine))
-                    {
                         Log($"   > {cleanLine}");
-                    }
                 }
-            };
+            }
 
-            process.ErrorDataReceived += (s, e) =>
-            {
-                if (!string.IsNullOrWhiteSpace(e.Data))
-                {
-                    string? cleanLine = CleanLogLine(e.Data);
-                    if (!string.IsNullOrEmpty(cleanLine))
-                    {
-                        Log($"   > {cleanLine}");
-                    }
-                }
-            };
-
+            process.OutputDataReceived += OnDataReceived;
+            process.ErrorDataReceived += OnDataReceived;
             process.Exited += (s, e) =>
             {
                 tcs.SetResult(process.ExitCode == 0);
@@ -356,23 +263,19 @@ namespace PGInstaller.Viewmodel
             }
             catch (Exception ex)
             {
-                Log($"   [FAILED] Could not start {fileName}: {ex.Message}");
+                if (!suppressError)
+                    Log($"   [FAILED] Could not start {fileName}: {ex.Message}");
                 return false;
             }
         }
 
-        #endregion
-
-        #region Log Cleaning
         private string? CleanLogLine(string line)
         {
             line = line.Trim();
-            if (line.Contains("█") || line.Contains("▒") || line.StartsWith("[=") || line.StartsWith("=======")) return null;
-            if (line.Length <= 2 && (line.Contains("-") || line.Contains("\\") || line.Contains("|") || line.Contains("/"))) return null;
-            if (Regex.IsMatch(line, @"\d+\s?(KB|MB|GB)\s?/\s?\d+\s?(KB|MB|GB)")) return null;
+            if (string.IsNullOrWhiteSpace(line)) return null;
+            if (line.StartsWith("[=") || line.StartsWith("=======")) return null;
             if (Regex.IsMatch(line, @"\d+%$")) return null;
-            if (line.StartsWith("Download") && !line.Contains("http")) return null;
-
+            if (line.Contains("Extracting")) return null;
             return line;
         }
 
