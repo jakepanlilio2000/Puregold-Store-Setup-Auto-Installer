@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer"
+    Title="PG-AIO Installer (PRE-ALPHA)"
     Width="950"
     Height="700"
     Background="#F0F2F5"
