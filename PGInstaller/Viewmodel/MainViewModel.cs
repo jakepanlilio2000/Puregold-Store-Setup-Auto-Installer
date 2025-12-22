@@ -3,28 +3,45 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 
 namespace PGInstaller.Viewmodel
 {
     public partial class MainViewModel : ObservableObject
     {
-        [ObservableProperty] private string? _logOutput;
-        [ObservableProperty] private bool _isBusy;
-        [ObservableProperty] private string? _selectedDepartment;
+        [ObservableProperty]
+        private string? _logOutput;
+
+        [ObservableProperty]
+        private bool _isBusy;
+
+        [ObservableProperty]
+        private string? _selectedDepartment;
 
         private string _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
-        public ObservableCollection<string> PreviewList { get; } = new ObservableCollection<string>();
+        public ObservableCollection<string> PreviewList { get; } =
+            new ObservableCollection<string>();
 
-        public ObservableCollection<string> Departments { get; } = new ObservableCollection<string>
-        {
-            "IT", "HRD", "ICD", "Payables", "Creative", "Admin", "Audit",
-            "Store Operations (Manager)", "Store Operations (Customer Service)",
-            "Store Operations (Gcash)", "Store Operations (HBC)", "Receiving", "Treasury",
-        };
+        public ObservableCollection<string> Departments { get; } =
+            new ObservableCollection<string>
+            {
+                "IT",
+                "HRD",
+                "ICD",
+                "Payables",
+                "Creative",
+                "Admin",
+                "Audit",
+                "Store Operations (Manager)",
+                "Store Operations (Customer Service)",
+                "Store Operations (Gcash)",
+                "Store Operations (HBC)",
+                "Receiving",
+                "Treasury",
+            };
 
         public MainViewModel()
         {
@@ -35,7 +52,8 @@ namespace PGInstaller.Viewmodel
         [RelayCommand]
         private async Task Install()
         {
-            if (IsBusy) return;
+            if (IsBusy)
+                return;
             IsBusy = true;
             LogOutput = "";
             Log("------------------------------------------------");
@@ -47,20 +65,48 @@ namespace PGInstaller.Viewmodel
 
                 switch (SelectedDepartment)
                 {
-                    case "IT": await InstallITPackage(); break;
-                    case "HRD": await InstallHRDPackage(); break;
-                    case "ICD": await InstallICDPackage(); break;
-                    case "Payables": await InstallPayablesPackage(); break;
-                    case "Admin": await InstallAdminPackage(); break;
-                    case "Audit": await InstallAuditPackage(); break;
-                    case "Store Operations (Manager)": await InstallStoreOperationsPackage("Manager"); break;
-                    case "Store Operations (Customer Service)": await InstallStoreOperationsPackage("Customer Service"); break;
-                    case "Store Operations (Gcash)": await InstallStoreOperationsPackage("Gcash"); break;
-                    case "Store Operations (HBC)": await InstallStoreOperationsPackage("HBC"); break;
-                    case "Creative": await InstallCreativePackage(); break;
-                    case "Receiving": await InstallReceivingPackage(); break;
-                    case "Treasury": await InstallTreasuryPackage(); break;
-                    default: Log("No specific package defined for this department yet."); break;
+                    case "IT":
+                        await InstallITPackage();
+                        break;
+                    case "HRD":
+                        await InstallHRDPackage();
+                        break;
+                    case "ICD":
+                        await InstallICDPackage();
+                        break;
+                    case "Payables":
+                        await InstallPayablesPackage();
+                        break;
+                    case "Admin":
+                        await InstallAdminPackage();
+                        break;
+                    case "Audit":
+                        await InstallAuditPackage();
+                        break;
+                    case "Store Operations (Manager)":
+                        await InstallStoreOperationsPackage("Manager");
+                        break;
+                    case "Store Operations (Customer Service)":
+                        await InstallStoreOperationsPackage("Customer Service");
+                        break;
+                    case "Store Operations (Gcash)":
+                        await InstallStoreOperationsPackage("Gcash");
+                        break;
+                    case "Store Operations (HBC)":
+                        await InstallStoreOperationsPackage("HBC");
+                        break;
+                    case "Creative":
+                        await InstallCreativePackage();
+                        break;
+                    case "Receiving":
+                        await InstallReceivingPackage();
+                        break;
+                    case "Treasury":
+                        await InstallTreasuryPackage();
+                        break;
+                    default:
+                        Log("No specific package defined for this department yet.");
+                        break;
                 }
             }
             catch (Exception ex)
@@ -74,7 +120,13 @@ namespace PGInstaller.Viewmodel
                 Log("Process Completed.");
             }
         }
-        private async Task SmartInstall(string appName, string offlineExe, string offlineArgs = "/silent", string? checkName = null)
+
+        private async Task SmartInstall(
+            string appName,
+            string offlineExe,
+            string offlineArgs = "/silent",
+            string? checkName = null
+        )
         {
             if (!string.IsNullOrEmpty(checkName))
             {
@@ -91,11 +143,19 @@ namespace PGInstaller.Viewmodel
                 if (offlineExe.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
                 {
                     string msiArgs = $"/i \"{installerPath}\" {offlineArgs}";
-                    await RunProcessAsync("msiexec.exe", msiArgs, $"[OFFLINE] Installing {appName} (MSI)");
+                    await RunProcessAsync(
+                        "msiexec.exe",
+                        msiArgs,
+                        $"[OFFLINE] Installing {appName} (MSI)"
+                    );
                 }
                 else
                 {
-                    await RunProcessAsync(installerPath, offlineArgs, $"[OFFLINE] Installing {appName}");
+                    await RunProcessAsync(
+                        installerPath,
+                        offlineArgs,
+                        $"[OFFLINE] Installing {appName}"
+                    );
                 }
             }
             else
@@ -103,6 +163,7 @@ namespace PGInstaller.Viewmodel
                 Log($"   [SKIP] Installer missing: {offlineExe}");
             }
         }
+
         private bool IsAppInstalled(string partialName)
         {
             string? displayName;
@@ -110,7 +171,7 @@ namespace PGInstaller.Viewmodel
             List<string> registryPaths = new List<string>()
             {
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
             };
 
             foreach (var path in registryPaths)
@@ -126,8 +187,13 @@ namespace PGInstaller.Viewmodel
                                 using (var subkey = key.OpenSubKey(subkeyName))
                                 {
                                     displayName = subkey?.GetValue("DisplayName") as string;
-                                    if (!string.IsNullOrEmpty(displayName) &&
-                                        displayName.Contains(partialName, StringComparison.OrdinalIgnoreCase))
+                                    if (
+                                        !string.IsNullOrEmpty(displayName)
+                                        && displayName.Contains(
+                                            partialName,
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
                                     {
                                         return true;
                                     }
@@ -145,7 +211,10 @@ namespace PGInstaller.Viewmodel
         {
             string localAssets = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
-            if (File.Exists(Path.Combine(localAssets, "Chrome.exe")) || File.Exists(Path.Combine(localAssets, "7z.exe")))
+            if (
+                File.Exists(Path.Combine(localAssets, "Chrome.exe"))
+                || File.Exists(Path.Combine(localAssets, "7z.exe"))
+            )
             {
                 _assetsPath = localAssets;
                 Log($"   [INIT] Using Local Assets folder: {_assetsPath}");
@@ -160,7 +229,8 @@ namespace PGInstaller.Viewmodel
                     Log("   [INFO] Extracting Assets.zip to Temp folder...");
                     try
                     {
-                        if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true);
+                        if (Directory.Exists(tempRoot))
+                            Directory.Delete(tempRoot, true);
                         Directory.CreateDirectory(tempRoot);
                         await Task.Run(() => ZipFile.ExtractToDirectory(zipFile, tempRoot));
                         Log("   [SUCCESS] Extraction complete.");
@@ -195,28 +265,65 @@ namespace PGInstaller.Viewmodel
             await SmartInstall("VLC", "vlc.exe", "/S", "VLC media player");
             await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
 
-            string aioPath = Path.Combine(_assetsPath, "vcredist_aio.exe");
-            if (File.Exists(aioPath))
+            if (IsAppInstalled("Microsoft Visual C++ 2015-2022"))
             {
-                if (IsAppInstalled("Microsoft Visual C++ 2015-2022"))
-                {
-                    Log("   [SKIP] VC++ Runtimes (2015-2022) are already installed.");
-                }
-                else
-                {
-                    await RunProcessAsync(aioPath, "/y", "Installing VC++ Runtimes (2005-2026 AIO)");
-                }
+                Log("   [SKIP] VC++ Runtimes (2015-2022) are already installed.");
             }
             else
             {
-                Log("   [SKIP] vcredist_aio.exe not found.");
+                Log("   [INIT] Preparing VC++ Runtime Installers...");
+
+                string[] vcredistFiles =
+                {
+                    "install_all.bat",
+                    "vcredist2005_x64.exe",
+                    "vcredist2005_x86.exe",
+                    "vcredist2008_x64.exe",
+                    "vcredist2008_x86.exe",
+                    "vcredist2010_x64.exe",
+                    "vcredist2010_x86.exe",
+                    "vcredist2012_x64.exe",
+                    "vcredist2012_x86.exe",
+                    "vcredist2013_x64.exe",
+                    "vcredist2013_x86.exe",
+                    "vcredist2015_2017_2019_2022_x64.exe",
+                    "vcredist2015_2017_2019_2022_x86.exe",
+                };
+
+                string? batchPath = null;
+                foreach (var file in vcredistFiles)
+                {
+                    string fullPath = Path.Combine(_assetsPath, file);
+                    if (!File.Exists(fullPath) && _assetsPath.Contains(Path.GetTempPath())) { }
+
+                    if (file == "install_all.bat")
+                        batchPath = fullPath;
+                }
+
+                if (!string.IsNullOrEmpty(batchPath) && File.Exists(batchPath))
+                {
+                    await RunProcessAsync(
+                        "cmd.exe",
+                        $"/c \"{batchPath}\"",
+                        "Installing All VC++ Runtimes"
+                    );
+                }
+                else
+                {
+                    Log("   [ERROR] install_all.bat not found. skipping VC++ runtimes.");
+                }
             }
         }
 
         #endregion
 
         #region Helpers
-        private async Task<bool> RunProcessAsync(string fileName, string arguments, string description, bool suppressError = false)
+        private async Task<bool> RunProcessAsync(
+            string fileName,
+            string arguments,
+            string description,
+            bool suppressError = false
+        )
         {
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
             var tcs = new TaskCompletionSource<bool>();
@@ -272,10 +379,14 @@ namespace PGInstaller.Viewmodel
         private string? CleanLogLine(string line)
         {
             line = line.Trim();
-            if (string.IsNullOrWhiteSpace(line)) return null;
-            if (line.StartsWith("[=") || line.StartsWith("=======")) return null;
-            if (Regex.IsMatch(line, @"\d+%$")) return null;
-            if (line.Contains("Extracting")) return null;
+            if (string.IsNullOrWhiteSpace(line))
+                return null;
+            if (line.StartsWith("[=") || line.StartsWith("======="))
+                return null;
+            if (Regex.IsMatch(line, @"\d+%$"))
+                return null;
+            if (line.Contains("Extracting"))
+                return null;
             return line;
         }
 
