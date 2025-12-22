@@ -7,7 +7,7 @@
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
     Title="PG-AIO Installer (PRE-ALPHA)"
     Width="950"
-    Height="700"
+    Height="750"
     Background="#F0F2F5"
     FontFamily="Segoe UI"
     ResizeMode="CanMinimize"
@@ -31,6 +31,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -205,6 +206,42 @@
 
                 <Button
                     Grid.Row="5"
+                    Height="40"
+                    Margin="0,0,0,25"
+                    BorderThickness="0"
+                    Command="{Binding RunDebloatCommand}"
+                    Content="DEBLOAT WINDOWS"
+                    Cursor="Hand"
+                    FontSize="13"
+                    FontWeight="Bold"
+                    Foreground="White">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="#8E44AD" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#9B59B6" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Background" Value="#7F8C8D" />
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button
+                    Grid.Row="6"
                     Height="45"
                     BorderThickness="0"
                     Command="{Binding InstallCommand}"
@@ -239,7 +276,7 @@
                 </Button>
 
                 <TextBlock
-                    Grid.Row="6"
+                    Grid.Row="7"
                     Margin="0,15,0,0"
                     HorizontalAlignment="Center"
                     FontSize="10"

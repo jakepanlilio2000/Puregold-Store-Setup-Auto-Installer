@@ -19,9 +19,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Update="assets\assets.zip">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
+	  <None Update="assets\assets.zip">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>
