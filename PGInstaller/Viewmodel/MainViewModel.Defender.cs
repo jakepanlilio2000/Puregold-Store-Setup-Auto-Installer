@@ -1,10 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
@@ -14,6 +11,7 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RunDefenderCommand))]
         private bool _isDefenderPresent;
+
         private async Task CheckDefender()
         {
             Log("   [INIT] Checking Windows Defender status...");
@@ -22,39 +20,44 @@ namespace PGInstaller.Viewmodel
             IsDefenderPresent = exists;
 
             if (IsDefenderPresent)
-                Log("   [INIT] Windows Defender Detected. Defender Disabler script enabled.");
+                Log("   [INIT] Windows Defender Detected. Disabler button enabled.");
             else
-                Log("   [INIT] Windows Defender NOT detected. Defender Disabler script disabled.");
+                Log("   [INIT] Windows Defender NOT detected. Disabler button disabled.");
         }
+
+        private bool CanRunDefender() => IsDefenderPresent && !IsBusy;
 
         [RelayCommand(CanExecute = nameof(CanRunDefender))]
         private async Task RunDefender()
         {
             if (IsBusy) return;
             IsBusy = true;
-            RunDefenderCommand.NotifyCanExecuteChanged();
+            RunDefenderCommand.NotifyCanExecuteChanged(); 
 
             Log("------------------------------------------------");
-            Log("Disabling Windows Defender...");
+            Log("Attempting to Disable Windows Defender...");
 
             try
             {
                 await PrepareAssets();
-                string scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "AchillesScript.cmd");
+
+                string scriptPath = Path.Combine(_assetsPath, "AchillesScript.cmd");
 
                 if (File.Exists(scriptPath))
                 {
-                    await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Defender Disabler Script");
-                    Log("   [SUCCESS] Defender Disabler Script execution finished.");
+                    await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Achilles (Defender Disabler)");
+                    Log("   [SUCCESS] Script executed.");
+
+                    await CheckDefender();
                 }
                 else
                 {
-                    Log($"   [ERROR] Script not found: {scriptPath}");
+                    Log($"   [ERROR] Script not found at: {scriptPath}");
                 }
             }
             catch (Exception ex)
             {
-                Log($"   [ERROR] Defender Disabler Failed: {ex.Message}");
+                Log($"   [ERROR] Operation Failed: {ex.Message}");
             }
             finally
             {
@@ -63,7 +66,5 @@ namespace PGInstaller.Viewmodel
                 Log("------------------------------------------------");
             }
         }
-
-        private bool CanRunDefender() => IsDefenderPresent && !IsBusy;
     }
 }

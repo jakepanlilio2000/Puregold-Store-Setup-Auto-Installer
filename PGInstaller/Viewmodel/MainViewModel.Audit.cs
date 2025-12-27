@@ -12,6 +12,8 @@ namespace PGInstaller.Viewmodel
         private async Task InstallAuditPackage()
         {
             await InstallCommonPackages();
+            await InstallMMS();
+            await PasteMMS();
         }
     }
 }

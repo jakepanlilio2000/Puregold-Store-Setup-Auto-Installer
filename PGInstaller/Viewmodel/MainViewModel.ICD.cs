@@ -11,6 +11,9 @@ namespace PGInstaller.Viewmodel
         private async Task InstallICDPackage()
         {
             await InstallCommonPackages();
+            await InstallMMS();
+            await PasteMMS();
+            await PasteVARIANCE();
         }
     }
 }

@@ -12,13 +12,24 @@
 		<SelfContained>false</SelfContained>
 		<IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
 		<EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+		<ApplicationIcon>ic.ico</ApplicationIcon>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <Content Include="ic.ico" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Update="7z.dll">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	  <None Update="7z.exe">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	  <None Update="assets\assets.zip">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>

@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,6 +48,7 @@ namespace PGInstaller.Viewmodel
         {
             SelectedDepartment = "IT";
             Log("Welcome to PG Installer. Select a department to begin.");
+            _ = CheckDefender();
         }
 
         [RelayCommand]
@@ -61,7 +63,13 @@ namespace PGInstaller.Viewmodel
 
             try
             {
-                await PrepareAssets();
+                bool assetsReady = await PrepareAssets();
+
+                if (!assetsReady)
+                {
+                    Log("CRITICAL: Failed to prepare assets. Stopping.");
+                    return;
+                }
 
                 switch (SelectedDepartment)
                 {
@@ -89,8 +97,8 @@ namespace PGInstaller.Viewmodel
                     case "Store Operations (Customer Service)":
                         await InstallStoreOperationsPackage("Customer Service");
                         break;
-                    case "Store Operations (Gcash)":
-                        await InstallStoreOperationsPackage("Gcash");
+                    case "Store Operations (Selling)":
+                        await InstallStoreOperationsPackage("Selling");
                         break;
                     case "Store Operations (HBC)":
                         await InstallStoreOperationsPackage("HBC");
@@ -123,195 +131,180 @@ namespace PGInstaller.Viewmodel
 
         private async Task SmartInstall(
             string appName,
-            string offlineExe,
-            string offlineArgs = "/silent",
+            string exeName,
+            string args = "/silent",
             string? checkName = null
         )
         {
-            if (!string.IsNullOrEmpty(checkName))
+            if (!string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
             {
-                if (IsAppInstalled(checkName))
-                {
-                    Log($"   [SKIP] {appName} is already installed.");
-                    return;
-                }
+                Log($"   [SKIP] {appName} is already installed.");
+                return;
             }
-            string installerPath = Path.Combine(_assetsPath, offlineExe);
+
+            string installerPath = Path.Combine(_assetsPath, exeName);
 
             if (File.Exists(installerPath))
             {
-                if (offlineExe.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                if (exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
                 {
-                    string msiArgs = $"/i \"{installerPath}\" {offlineArgs}";
                     await RunProcessAsync(
                         "msiexec.exe",
-                        msiArgs,
-                        $"[OFFLINE] Installing {appName} (MSI)"
+                        $"/i \"{installerPath}\" {args}",
+                        $"Installing {appName}"
                     );
                 }
                 else
                 {
-                    await RunProcessAsync(
-                        installerPath,
-                        offlineArgs,
-                        $"[OFFLINE] Installing {appName}"
-                    );
+                    await RunProcessAsync(installerPath, args, $"Installing {appName}");
                 }
             }
             else
             {
-                Log($"   [SKIP] Installer missing: {offlineExe}");
+                Log($"   [SKIP] Installer not found: {exeName}");
             }
         }
 
-        private bool IsAppInstalled(string partialName)
-        {
-            string? displayName;
-            RegistryKey? key;
-            List<string> registryPaths = new List<string>()
-            {
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-            };
-
-            foreach (var path in registryPaths)
-            {
-                try
-                {
-                    using (key = Registry.LocalMachine.OpenSubKey(path))
-                    {
-                        if (key != null)
-                        {
-                            foreach (var subkeyName in key.GetSubKeyNames())
-                            {
-                                using (var subkey = key.OpenSubKey(subkeyName))
-                                {
-                                    displayName = subkey?.GetValue("DisplayName") as string;
-                                    if (
-                                        !string.IsNullOrEmpty(displayName)
-                                        && displayName.Contains(
-                                            partialName,
-                                            StringComparison.OrdinalIgnoreCase
-                                        )
-                                    )
-                                    {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-            return false;
-        }
-
-        private async Task PrepareAssets()
-        {
-            string localAssets = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
-
-            if (
-                File.Exists(Path.Combine(localAssets, "Chrome.exe"))
-                || File.Exists(Path.Combine(localAssets, "7z.exe"))
-            )
-            {
-                _assetsPath = localAssets;
-                Log($"   [INIT] Using Local Assets folder: {_assetsPath}");
-                return;
-            }
-            string zipFile = Path.Combine(localAssets, "assets.zip");
-            if (File.Exists(zipFile))
-            {
-                string tempRoot = Path.Combine(Path.GetTempPath(), "PGInstaller_Assets");
-                if (!Directory.Exists(tempRoot) || !File.Exists(Path.Combine(tempRoot, "7z.exe")))
-                {
-                    Log("   [INFO] Extracting Assets.zip to Temp folder...");
-                    try
-                    {
-                        if (Directory.Exists(tempRoot))
-                            Directory.Delete(tempRoot, true);
-                        Directory.CreateDirectory(tempRoot);
-                        await Task.Run(() => ZipFile.ExtractToDirectory(zipFile, tempRoot));
-                        Log("   [SUCCESS] Extraction complete.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"   [ERROR] Failed to extract assets: {ex.Message}");
-                    }
-                }
-
-                string subAssets = Path.Combine(tempRoot, "Assets");
-                _assetsPath = Directory.Exists(subAssets) ? subAssets : tempRoot;
-                Log($"   [INIT] Using Temp Assets: {_assetsPath}");
-            }
-            else
-            {
-                _assetsPath = localAssets;
-                Log("   [WARNING] No installers found (Checked Local and Zip).");
-            }
-        }
+        
 
         #region Package Implementations
 
         private async Task InstallCommonPackages()
         {
-            await SmartInstall("Google Chrome", "Chrome.exe", "/silent /install", "Google Chrome");
-            await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms -ma", "Mozilla Firefox");
-            await SmartInstall("7-Zip", "7z.exe", "/S", "7-Zip");
+            await SmartInstall("Google Chrome", "chrome.exe", "/silent /install", "Google Chrome");
+            await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms", "Mozilla Firefox");
+            await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
+            await SmartInstall("Revo Uninstaller", "Revo.exe", "/S", "Revo Uninstaller");
+            await SmartInstall("IObit Driver Booster", "drv.exe", "/S /I", "Driver Booster");
             await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
-            await SmartInstall("Mozilla Thunderbird", "Thunderbird.exe", "-ms -ma", "Thunderbird");
-            await SmartInstall("Oracle Java Runtime", "jre.exe", "/s", "Java");
-            await SmartInstall("VLC", "vlc.exe", "/S", "VLC media player");
-            await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
+            await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
+            await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
 
-            if (IsAppInstalled("Microsoft Visual C++ 2015-2022"))
+            if (!IsAppInstalled("Microsoft Visual C++ 2015-2022"))
             {
-                Log("   [SKIP] VC++ Runtimes (2015-2022) are already installed.");
+                Log("   [INIT] Preparing VC++ Runtimes...");
+                await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");
             }
             else
             {
-                Log("   [INIT] Preparing VC++ Runtime Installers...");
+                Log("   [SKIP] VC++ Runtimes already installed.");
+            }
+            if (!IsAppInstalled("Adobe Acrobat"))
+            {
+                await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll /rs", "Adobe Acrobat");
+            }
+            else
+            {
+                Log("   [SKIP] Adobe Acrobat is already installed.");
+            }
 
-                string[] vcredistFiles =
+
+            if (!IsAppInstalled("WPS Office"))
+            {
+                await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
+                string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
+                string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
+
+                if (File.Exists(authDllSource))
                 {
-                    "install_all.bat",
-                    "vcredist2005_x64.exe",
-                    "vcredist2005_x86.exe",
-                    "vcredist2008_x64.exe",
-                    "vcredist2008_x86.exe",
-                    "vcredist2010_x64.exe",
-                    "vcredist2010_x86.exe",
-                    "vcredist2012_x64.exe",
-                    "vcredist2012_x86.exe",
-                    "vcredist2013_x64.exe",
-                    "vcredist2013_x86.exe",
-                    "vcredist2015_2017_2019_2022_x64.exe",
-                    "vcredist2015_2017_2019_2022_x86.exe",
-                };
+                    string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                    string wpsDestDir = Path.Combine(appData, @"Kingsoft\WPS Office\11.2.0.9629\office6");
+                    string authDllDest = Path.Combine(wpsDestDir, "auth.dll");
 
-                string? batchPath = null;
-                foreach (var file in vcredistFiles)
+                    if (Directory.Exists(wpsDestDir))
+                    {
+                        try
+                        {
+                            File.Copy(authDllSource, authDllDest, true);
+                            Log("   [SUCCESS] WPS auth.dll patched successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [ERROR] Failed to patch WPS auth.dll: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        Log($"   [WARNING] WPS install folder not found: {wpsDestDir}");
+                    }
+                }
+            }
+            else
+            {
+                Log("   [SKIP] WPS Office is already installed.");
+            }
+
+            await ApplyRadminServer();
+        }
+
+        private async Task InstallZipPackage(
+            string zipName,
+            string installerName,
+            string args,
+            string description
+        )
+        {
+            string zipPath = Path.Combine(_assetsPath, zipName);
+            string extractPath = Path.Combine(
+                _assetsPath,
+                Path.GetFileNameWithoutExtension(zipName)
+            );
+
+            if (File.Exists(zipPath))
+            {
+                if (!Directory.Exists(extractPath))
                 {
-                    string fullPath = Path.Combine(_assetsPath, file);
-                    if (!File.Exists(fullPath) && _assetsPath.Contains(Path.GetTempPath())) { }
-
-                    if (file == "install_all.bat")
-                        batchPath = fullPath;
+                    Log($"   [EXTRACT] Unzipping {zipName}...");
+                    try
+                    {
+                        Directory.CreateDirectory(extractPath);
+                        await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractPath));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Extract failed: {ex.Message}");
+                        return;
+                    }
                 }
 
-                if (!string.IsNullOrEmpty(batchPath) && File.Exists(batchPath))
+                string setupPath = "";
+                var files = Directory.GetFiles(
+                    extractPath,
+                    installerName,
+                    SearchOption.AllDirectories
+                );
+                if (files.Length > 0)
+                    setupPath = files[0];
+
+                if (File.Exists(setupPath))
                 {
-                    await RunProcessAsync(
-                        "cmd.exe",
-                        $"/c \"{batchPath}\"",
-                        "Installing All VC++ Runtimes"
-                    );
+                    if (installerName.EndsWith(".bat") || installerName.EndsWith(".cmd"))
+                    {
+                        var startInfo = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c \"{setupPath}\"",
+                            WorkingDirectory = Path.GetDirectoryName(setupPath),
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                        };
+                        await RunCustomProcess(startInfo, $"Installing {description}");
+                    }
+                    else
+                    {
+                        await RunProcessAsync(setupPath, args, $"Installing {description}");
+                    }
                 }
                 else
                 {
-                    Log("   [ERROR] install_all.bat not found. skipping VC++ runtimes.");
+                    Log($"   [ERROR] {installerName} not found inside {zipName}");
                 }
+            }
+            else
+            {
+                Log($"   [SKIP] Zip not found: {zipName}");
             }
         }
 
@@ -325,35 +318,48 @@ namespace PGInstaller.Viewmodel
             bool suppressError = false
         )
         {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                WorkingDirectory = Path.GetDirectoryName(fileName),
+            };
+            return await RunCustomProcess(startInfo, description, suppressError);
+        }
+
+        private async Task<bool> RunCustomProcess(
+            ProcessStartInfo startInfo,
+            string description,
+            bool suppressError = false
+        )
+        {
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
             var tcs = new TaskCompletionSource<bool>();
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = System.Text.Encoding.UTF8,
-                },
-                EnableRaisingEvents = true,
-            };
+            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
-            void OnDataReceived(object s, DataReceivedEventArgs e)
+            process.OutputDataReceived += (s, e) =>
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
-                    string? cleanLine = CleanLogLine(e.Data);
-                    if (!string.IsNullOrEmpty(cleanLine))
-                        Log($"   > {cleanLine}");
+                    string? l = CleanLogLine(e.Data);
+                    if (l != null)
+                        Log($"   > {l}");
                 }
-            }
-
-            process.OutputDataReceived += OnDataReceived;
-            process.ErrorDataReceived += OnDataReceived;
+            };
+            process.ErrorDataReceived += (s, e) =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.Data))
+                {
+                    string? l = CleanLogLine(e.Data);
+                    if (l != null)
+                        Log($"   > {l}");
+                }
+            };
             process.Exited += (s, e) =>
             {
                 tcs.SetResult(process.ExitCode == 0);
@@ -371,9 +377,44 @@ namespace PGInstaller.Viewmodel
             catch (Exception ex)
             {
                 if (!suppressError)
-                    Log($"   [FAILED] Could not start {fileName}: {ex.Message}");
+                    Log($"   [FAILED] Process Error: {ex.Message}");
                 return false;
             }
+        }
+
+        private bool IsAppInstalled(string partialName)
+        {
+            string[] registryPaths =
+            {
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            };
+
+            foreach (var path in registryPaths)
+            {
+                try
+                {
+                    using var key = Registry.LocalMachine.OpenSubKey(path);
+                    if (key != null)
+                    {
+                        foreach (var subkeyName in key.GetSubKeyNames())
+                        {
+                            using var subkey = key.OpenSubKey(subkeyName);
+                            var displayName = subkey?.GetValue("DisplayName") as string;
+                            if (
+                                !string.IsNullOrEmpty(displayName)
+                                && displayName.Contains(
+                                    partialName,
+                                    StringComparison.OrdinalIgnoreCase
+                                )
+                            )
+                                return true;
+                        }
+                    }
+                }
+                catch { }
+            }
+            return false;
         }
 
         private string? CleanLogLine(string line)
@@ -383,9 +424,9 @@ namespace PGInstaller.Viewmodel
                 return null;
             if (line.StartsWith("[=") || line.StartsWith("======="))
                 return null;
-            if (Regex.IsMatch(line, @"\d+%$"))
-                return null;
             if (line.Contains("Extracting"))
+                return null;
+            if (Regex.IsMatch(line, @"\d+%$"))
                 return null;
             return line;
         }

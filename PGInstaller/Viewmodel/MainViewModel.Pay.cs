@@ -11,6 +11,8 @@ namespace PGInstaller.Viewmodel
         private async Task InstallPayablesPackage()
         {
             await InstallCommonPackages();
+            await InstallMMS();
+            await PasteMMS();
         }
     }
 }

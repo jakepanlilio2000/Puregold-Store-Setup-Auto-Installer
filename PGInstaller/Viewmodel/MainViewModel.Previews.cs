@@ -17,11 +17,15 @@ namespace PGInstaller.Viewmodel
             {
                 "Google Chrome",
                 "Mozilla Firefox",
-                "7-Zip",
+                "WinRAR",
                 "Notepad++",
                 "Mozilla Thunderbird",
                 "Oracle Java Runtime",
                 "All VC++ Redistributables",
+                "WPS Office 2020",
+                "Revo Uninstaller Pro",
+                "MMS (IBM PCOMM)",
+                "Adobe Acrobat PRO DC"
             };
 
             foreach (var app in commonApps)
@@ -34,12 +38,39 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("Advanced IP Scanner");
                     PreviewList.Add("PuTTY (+ Registry Settings)");
                     PreviewList.Add("Radmin Server (+ Config)");
+                    PreviewList.Add("WinSCP (+ Config)");
+                    PreviewList.Add("PIMS");
                     break;
                 case "HRD":
                     PreviewList.Insert(0, ".NET Framework 3.5");
                     break;
+                case "ICD":
+                    PreviewList.Add("PIMS");
+                    break;
+                case "Payables":
+                    PreviewList.Add("MORE SOON");
+                    break;
+                case "Admin":
+                    PreviewList.Add("MORE SOON");
+                    break;
+                case "Audit":
+                    PreviewList.Add("MORE SOON");
+                    break;
+                case "Creative":
+                    PreviewList.Add("Coreldraw Graphics");
+                    PreviewList.Add("Coreldraw Technical Suite");
+                    PreviewList.Add("Photoshop");
+                    break;
+                case "Receiving":
+                    PreviewList.Add("MORE SOON");
+                    break;
+                case "Treasury":
+                    PreviewList.Add("Java Oracle");
+                    break;
                 case "Store Operations (Manager)":
                     PreviewList.Add("Microsoft Teams");
+                    PreviewList.Add("VLC Media Player");
+                    PreviewList.Add("PIMS");
                     break;
                 case "Store Operations (Customer Service)":
                     PreviewList.Add("Zoom");
@@ -48,7 +79,7 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("GitHub CLI");
                     break;
                 case "Store Operations (HBC)":
-                    PreviewList.Add("Slack");
+                    PreviewList.Add("PIMS");
                     break;
                 default:
 
