@@ -15,17 +15,16 @@ namespace PGInstaller.Viewmodel
                 await SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom");
             await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
             await InstallMMS();
-            await PasteMMS();
+            await InstallPIMS();
             if (role == "Customer Service")
                 await SmartInstall("Bartender", "bartender.exe", "/silent /S /I", "Bartender");
             await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
             if (role == "Selling")
                 await InstallMMS();
-            await PasteMMS();
             if (role == "HBC")
                 await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
             await InstallMMS();
-            await PasteMMS();
+            await InstallPIMS();
         }
     }
 }

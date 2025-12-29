@@ -24,7 +24,6 @@ namespace PGInstaller.Viewmodel
                 "All VC++ Redistributables",
                 "WPS Office 2020",
                 "Revo Uninstaller Pro",
-                "MMS (IBM PCOMM)",
                 "Adobe Acrobat PRO DC"
             };
 
@@ -40,21 +39,24 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("Radmin Server (+ Config)");
                     PreviewList.Add("WinSCP (+ Config)");
                     PreviewList.Add("PIMS");
+                    PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("Sticky Notes");
                     break;
                 case "HRD":
                     PreviewList.Insert(0, ".NET Framework 3.5");
                     break;
                 case "ICD":
                     PreviewList.Add("PIMS");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Payables":
-                    PreviewList.Add("MORE SOON");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Admin":
-                    PreviewList.Add("MORE SOON");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Audit":
-                    PreviewList.Add("MORE SOON");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Creative":
                     PreviewList.Add("Coreldraw Graphics");
@@ -62,7 +64,7 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("Photoshop");
                     break;
                 case "Receiving":
-                    PreviewList.Add("MORE SOON");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Treasury":
                     PreviewList.Add("Java Oracle");
@@ -71,15 +73,18 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("Microsoft Teams");
                     PreviewList.Add("VLC Media Player");
                     PreviewList.Add("PIMS");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Store Operations (Customer Service)":
                     PreviewList.Add("Zoom");
                     break;
-                case "Store Operations (Gcash)":
-                    PreviewList.Add("GitHub CLI");
+                case "Store Operations (Selling)":
+                    PreviewList.Add("PIMS");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Store Operations (HBC)":
                     PreviewList.Add("PIMS");
+                    PreviewList.Add("MMS (PCOMM)");
                     break;
                 default:
 

@@ -15,11 +15,11 @@ namespace PGInstaller.Viewmodel
             await InstallCommonPackages();
             await SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom");
             await SmartInstall("Advance IP Scanner", "ipscanner.exe", checkName: "Advanced IP Scanner");
-            await SmartInstall("PuTTY", "putty.msi", "/qn", "PuTTY");
+            await SmartInstall("WinSCP", "WinSCP.exe", "/VERYSILENT /NORESTART /ALLUSERS", "WinSCP");
+            await InstallPutty();
+            await InstallRadminViewer();
             await InstallMMS();
-            await PasteMMS();
-
-
+            await InstallPIMS();
         }
     }
 }

@@ -38,7 +38,7 @@ namespace PGInstaller.Viewmodel
                 "Audit",
                 "Store Operations (Manager)",
                 "Store Operations (Customer Service)",
-                "Store Operations (Gcash)",
+                "Store Operations (Selling)",
                 "Store Operations (HBC)",
                 "Receiving",
                 "Treasury",
@@ -173,25 +173,28 @@ namespace PGInstaller.Viewmodel
         {
             await SmartInstall("Google Chrome", "chrome.exe", "/silent /install", "Google Chrome");
             await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms", "Mozilla Firefox");
+            await SmartInstall("Microsoft Edge", "edge.msi", "/quiet", "Microsoft Edge");
             await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
             await SmartInstall("Revo Uninstaller", "Revo.exe", "/S", "Revo Uninstaller");
             await SmartInstall("IObit Driver Booster", "drv.exe", "/S /I", "Driver Booster");
             await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
             await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
             await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
+            await SmartInstall("Sticky Notes", "sticky.exe", "Setup_SimpleStickyNotes.exe /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Sticky Notes");
 
-            if (!IsAppInstalled("Microsoft Visual C++ 2015-2022"))
+            if (!IsAppInstalled("Microsoft Visual C++ 2015-2022") || !IsAppInstalled("Microsoft Visual C++ 2013"))
             {
                 Log("   [INIT] Preparing VC++ Runtimes...");
                 await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");
             }
             else
             {
-                Log("   [SKIP] VC++ Runtimes already installed.");
+                Log("   [SKIP] VC++ Runtimes (Recent versions) appear installed.");
             }
+
             if (!IsAppInstalled("Adobe Acrobat"))
             {
-                await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll /rs", "Adobe Acrobat");
+                await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll", "Adobe Acrobat PRO");
             }
             else
             {
@@ -199,33 +202,38 @@ namespace PGInstaller.Viewmodel
             }
 
 
-            if (!IsAppInstalled("WPS Office"))
+            bool isWpsRegPresent = false;
+            try { using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Kingsoft")) if (key != null) isWpsRegPresent = true; } catch { }
+
+            if (!IsAppInstalled("WPS Office") && !isWpsRegPresent)
             {
+
                 await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
-                string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
+                string wpsExtractDir = Path.Combine(_assetsPath, "WPS"); 
                 string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
+                if (!File.Exists(authDllSource))
+                {
+                    var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
+                    if (files.Length > 0) authDllSource = files[0];
+                }
 
                 if (File.Exists(authDllSource))
                 {
                     string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    string wpsDestDir = Path.Combine(appData, @"Kingsoft\WPS Office\11.2.0.9629\office6");
-                    string authDllDest = Path.Combine(wpsDestDir, "auth.dll");
-
-                    if (Directory.Exists(wpsDestDir))
+                    string kingsoftRoot = Path.Combine(appData, @"Kingsoft\WPS Office");
+                    if (Directory.Exists(kingsoftRoot))
                     {
-                        try
+                        var office6Dirs = Directory.GetDirectories(kingsoftRoot, "office6", SearchOption.AllDirectories);
+                        if (office6Dirs.Length > 0)
                         {
-                            File.Copy(authDllSource, authDllDest, true);
-                            Log("   [SUCCESS] WPS auth.dll patched successfully.");
+                            string authDllDest = Path.Combine(office6Dirs[0], "auth.dll");
+                            try
+                            {
+                                File.Copy(authDllSource, authDllDest, true);
+                                Log("   [SUCCESS] WPS auth.dll patched successfully.");
+                            }
+                            catch (Exception ex) { Log($"   [ERROR] Failed to patch WPS auth.dll: {ex.Message}"); }
                         }
-                        catch (Exception ex)
-                        {
-                            Log($"   [ERROR] Failed to patch WPS auth.dll: {ex.Message}");
-                        }
-                    }
-                    else
-                    {
-                        Log($"   [WARNING] WPS install folder not found: {wpsDestDir}");
                     }
                 }
             }

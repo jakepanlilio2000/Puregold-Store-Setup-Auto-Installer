@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer (Offline Edition)"
+    Title="PG-AIO Installer (BETA)"
     Width="1000"
     Height="760"
     Background="#F0F2F5"
@@ -274,7 +274,7 @@
                     HorizontalAlignment="Center"
                     FontSize="10"
                     Foreground="#7F8C8D"
-                    Text="PG-AIO Offline Installer v1.0" />
+                    Text="PG-AIO Offline Installer v0.1" />
             </Grid>
         </Border>
 

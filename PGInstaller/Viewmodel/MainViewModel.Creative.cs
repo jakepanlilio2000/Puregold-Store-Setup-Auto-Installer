@@ -11,7 +11,9 @@ namespace PGInstaller.Viewmodel
     {
         private async Task InstallCreativePackage()
         {
+
             await InstallCommonPackages();
+            await InstallCorelPSIllu();
         }
     }
 }

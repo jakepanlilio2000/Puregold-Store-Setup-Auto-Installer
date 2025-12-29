@@ -55,7 +55,7 @@ namespace PGInstaller.Viewmodel
                     return false;
                 string subFolder = Path.Combine(tempRoot, "assets");
                 _assetsPath = Directory.Exists(subFolder) ? subFolder : tempRoot;
-                Log($"   [INIT] Assets ready at: {_assetsPath}");
+                Log($"   [INIT] Assets ready");
                 return true;
             }
 

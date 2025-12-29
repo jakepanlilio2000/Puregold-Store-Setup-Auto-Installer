@@ -1,8 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System;
+using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
@@ -14,16 +13,37 @@ namespace PGInstaller.Viewmodel
 
         private async Task CheckDefender()
         {
-            Log("   [INIT] Checking Windows Defender status...");
-            bool exists = await RunProcessAsync("sc", "query WinDefend", "Checking Defender Service", true);
+            Log("   [INIT] Checking Windows Defender runtime state...");
 
-            IsDefenderPresent = exists;
+            var output = await RunProcessCaptureAsync("sc", "query WinDefend");
 
-            if (IsDefenderPresent)
-                Log("   [INIT] Windows Defender Detected. Disabler button enabled.");
+            bool running =
+                output.IndexOf("STATE", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                output.IndexOf("RUNNING", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            IsDefenderPresent = running;
+
+            if (running)
+                Log("   [INIT] Windows Defender running. Disabler enabled.");
             else
-                Log("   [INIT] Windows Defender NOT detected. Disabler button disabled.");
+                Log("   [INIT] Windows Defender not running. Disabler disabled.");
         }
+
+        private async Task<string> RunProcessCaptureAsync(string file, string args)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = file,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            return await p!.StandardOutput.ReadToEndAsync();
+        }
+
 
         private bool CanRunDefender() => IsDefenderPresent && !IsBusy;
 

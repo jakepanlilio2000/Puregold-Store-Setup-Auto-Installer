@@ -14,7 +14,7 @@ namespace PGInstaller.Viewmodel
             await InstallCommonPackages();
             await SmartInstall("Bartender", "bartender.exe", "/silent /S /I", "Bartender");
             await InstallMMS();
-            await PasteMMS();
+            await InstallPIMS();
         }
     }
 }
