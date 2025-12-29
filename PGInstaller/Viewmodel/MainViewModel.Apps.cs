@@ -1,8 +1,8 @@
-﻿using Microsoft.Win32;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
+using Microsoft.Win32;
 
 namespace PGInstaller.Viewmodel
 {
@@ -12,10 +12,17 @@ namespace PGInstaller.Viewmodel
         {
             if (!IsAppInstalled("IBM Personal Communications"))
             {
-                await InstallZipPackage("MMS.zip", "setup.exe", "", "MMS (IBM Personal Communications)");
+                await InstallZipPackage(
+                    "MMS.zip",
+                    "setup.exe",
+                    "",
+                    "MMS (IBM Personal Communications)"
+                );
 
                 string mmsSource = Path.Combine(_assetsPath, "MMS.ws");
-                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string desktopPath = Environment.GetFolderPath(
+                    Environment.SpecialFolder.DesktopDirectory
+                );
                 string mmsDest = Path.Combine(desktopPath, "MMS.ws");
 
                 if (File.Exists(mmsSource))
@@ -53,8 +60,10 @@ namespace PGInstaller.Viewmodel
             string installBatPath = Path.Combine(_assetsPath, "install.bat");
             if (File.Exists(installBatPath))
             {
-                if (File.Exists(Path.Combine(_assetsPath, "newtstop.dll")) &&
-                    File.Exists(Path.Combine(_assetsPath, "nts64helper.dll")))
+                if (
+                    File.Exists(Path.Combine(_assetsPath, "newtstop.dll"))
+                    && File.Exists(Path.Combine(_assetsPath, "nts64helper.dll"))
+                )
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -70,7 +79,9 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log("   [ERROR] Dependencies for install.bat (newtstop.dll or nts64helper.dll) missing.");
+                    Log(
+                        "   [ERROR] Dependencies for install.bat (newtstop.dll or nts64helper.dll) missing."
+                    );
                 }
             }
             else
@@ -102,7 +113,11 @@ namespace PGInstaller.Viewmodel
                     Directory.CreateDirectory(pimsRoot);
                     await Task.Run(() => ZipFile.ExtractToDirectory(pimsZip, pimsRoot));
                 }
-                catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Extraction failed: {ex.Message}");
+                    return;
+                }
             }
 
             string crDir = Path.Combine(pimsRoot, "CRDev8.5");
@@ -116,17 +131,25 @@ namespace PGInstaller.Viewmodel
                     Log("   [INFO] Launching Serial Number.txt...");
                     try
                     {
-                       
-                        Process.Start(new ProcessStartInfo { FileName = serialPath, UseShellExecute = true });
+                        Process.Start(
+                            new ProcessStartInfo { FileName = serialPath, UseShellExecute = true }
+                        );
                     }
-                    catch (Exception ex) { Log($"   [WARN] Could not open serial file: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        Log($"   [WARN] Could not open serial file: {ex.Message}");
+                    }
                 }
                 await RunProcessAsync(crSetup, "", "Installing Crystal Reports 8.5");
             }
             string poMsi = Path.Combine(pimsRoot, "POTracking", "POTracking.msi");
             if (VerifyFile(poMsi))
             {
-                await RunProcessAsync("msiexec.exe", $"/i \"{poMsi}\" /qn", "Installing POTracking");
+                await RunProcessAsync(
+                    "msiexec.exe",
+                    $"/i \"{poMsi}\" /qn",
+                    "Installing POTracking"
+                );
             }
             string sqlDir = Path.Combine(pimsRoot, "SQLServer2005");
             string sqlMsi = Environment.Is64BitOperatingSystem
@@ -135,7 +158,11 @@ namespace PGInstaller.Viewmodel
 
             if (VerifyFile(sqlMsi))
             {
-                await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\"", "Installing SQL Server 2005 BC");
+                await RunProcessAsync(
+                    "msiexec.exe",
+                    $"/i \"{sqlMsi}\"",
+                    "Installing SQL Server 2005 BC"
+                );
             }
             string fmsSource = Path.Combine(pimsRoot, "FMS");
             string fmsDest = @"C:\FMS";
@@ -151,7 +178,9 @@ namespace PGInstaller.Viewmodel
             }
             Log("   [CONFIG] Requesting IP Address...");
 
-            string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter Server IP Address:", "192.92.1.100"));
+            string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Server IP Address:", "192.92.1.100")
+            );
 
             if (!string.IsNullOrWhiteSpace(ipAddress))
             {
@@ -172,10 +201,10 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-
         private bool VerifyFile(string path)
         {
-            if (File.Exists(path)) return true;
+            if (File.Exists(path))
+                return true;
             Log($"   [ERROR] Missing file: {Path.GetFileName(path)}");
             return false;
         }
@@ -187,7 +216,9 @@ namespace PGInstaller.Viewmodel
                 await Task.Run(() =>
                 {
                     Directory.CreateDirectory(targetDir);
-                    foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+                    foreach (
+                        var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories)
+                    )
                     {
                         string relativePath = Path.GetRelativePath(sourceDir, file);
                         string destPath = Path.Combine(targetDir, relativePath);
@@ -197,12 +228,14 @@ namespace PGInstaller.Viewmodel
                 });
                 Log("   [SUCCESS] FMS Copied successfully.");
             }
-            catch (Exception ex) { Log($"   [ERROR] Copy failed: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Copy failed: {ex.Message}");
+            }
         }
 
         private void ConfigurePimsRegistry(string softwareKey, string ip)
         {
-
             string baseKey = $@"SOFTWARE\{softwareKey}\Config";
 
             using (var key = Registry.LocalMachine.CreateSubKey(baseKey))
@@ -210,7 +243,7 @@ namespace PGInstaller.Viewmodel
                 if (key != null)
                 {
                     key.SetValue("IPADDRESS", ip);
-                    key.SetValue("DATABASE", softwareKey == "FIHO" ? "FreeItemsDB" : "FREEITEMSDB"); 
+                    key.SetValue("DATABASE", softwareKey == "FIHO" ? "FreeItemsDB" : "FREEITEMSDB");
                     key.SetValue("USERNAME", "sa");
                     key.SetValue("PASSWORD", "sa");
                     key.SetValue("PROVIDER", "SQLOLEDB.1");
@@ -228,22 +261,50 @@ namespace PGInstaller.Viewmodel
                 Height = 180,
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
                 ResizeMode = System.Windows.ResizeMode.NoResize,
-                WindowStyle = System.Windows.WindowStyle.ToolWindow
+                WindowStyle = System.Windows.WindowStyle.ToolWindow,
             };
 
-            System.Windows.Controls.StackPanel stack = new System.Windows.Controls.StackPanel() { Margin = new System.Windows.Thickness(20) };
+            System.Windows.Controls.StackPanel stack = new System.Windows.Controls.StackPanel()
+            {
+                Margin = new System.Windows.Thickness(20),
+            };
 
-            stack.Children.Add(new System.Windows.Controls.TextBlock() { Text = question, FontWeight = System.Windows.FontWeights.Bold, Margin = new System.Windows.Thickness(0, 0, 0, 10) });
+            stack.Children.Add(
+                new System.Windows.Controls.TextBlock()
+                {
+                    Text = question,
+                    FontWeight = System.Windows.FontWeights.Bold,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 10),
+                }
+            );
 
-            System.Windows.Controls.TextBox txtAnswer = new System.Windows.Controls.TextBox() { Text = defaultAnswer, Height = 30, VerticalContentAlignment = System.Windows.VerticalAlignment.Center };
+            System.Windows.Controls.TextBox txtAnswer = new System.Windows.Controls.TextBox()
+            {
+                Text = defaultAnswer,
+                Height = 30,
+                VerticalContentAlignment = System.Windows.VerticalAlignment.Center,
+            };
             stack.Children.Add(txtAnswer);
 
-            System.Windows.Controls.Button btnOk = new System.Windows.Controls.Button() { Content = "OK", IsDefault = true, Height = 30, Width = 80, Margin = new System.Windows.Thickness(0, 20, 0, 0), HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+            System.Windows.Controls.Button btnOk = new System.Windows.Controls.Button()
+            {
+                Content = "OK",
+                IsDefault = true,
+                Height = 30,
+                Width = 80,
+                Margin = new System.Windows.Thickness(0, 20, 0, 0),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            };
             stack.Children.Add(btnOk);
 
             string result = "";
 
-            btnOk.Click += (s, e) => { result = txtAnswer.Text; window.DialogResult = true; window.Close(); };
+            btnOk.Click += (s, e) =>
+            {
+                result = txtAnswer.Text;
+                window.DialogResult = true;
+                window.Close();
+            };
 
             window.Content = stack;
             window.ShowDialog();
@@ -251,10 +312,7 @@ namespace PGInstaller.Viewmodel
             return result;
         }
 
-        private async Task InstallFSDM()
-        {
-
-        }
+        private async Task InstallFSDM() { }
 
         private async Task InstallCorelPSIllu()
         {
@@ -273,8 +331,8 @@ namespace PGInstaller.Viewmodel
             string illuZip = Path.Combine(_assetsPath, "illucs6.zip");
             if (File.Exists(illuZip))
             {
-                string destDir = Path.Combine(progFiles, "IllustratorCS6Portable"); 
-                string exePath = Path.Combine(destDir, "IllustratorCS6Portable.exe"); 
+                string destDir = Path.Combine(progFiles, "IllustratorCS6Portable");
+                string exePath = Path.Combine(destDir, "IllustratorCS6Portable.exe");
 
                 if (!Directory.Exists(destDir))
                 {
@@ -284,7 +342,10 @@ namespace PGInstaller.Viewmodel
                         Directory.CreateDirectory(destDir);
                         await Task.Run(() => ZipFile.ExtractToDirectory(illuZip, destDir));
                     }
-                    catch (Exception ex) { Log($"   [ERROR] Illustrator extraction failed: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Illustrator extraction failed: {ex.Message}");
+                    }
                 }
                 if (File.Exists(exePath))
                 {
@@ -310,7 +371,10 @@ namespace PGInstaller.Viewmodel
                         Directory.CreateDirectory(destDir);
                         await Task.Run(() => ZipFile.ExtractToDirectory(psZip, destDir));
                     }
-                    catch (Exception ex) { Log($"   [ERROR] Photoshop extraction failed: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Photoshop extraction failed: {ex.Message}");
+                    }
                 }
 
                 if (File.Exists(exePath))
@@ -326,15 +390,23 @@ namespace PGInstaller.Viewmodel
 
         private async Task CreateDesktopShortcut(string linkName, string targetPath)
         {
-            string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            string desktopPath = Environment.GetFolderPath(
+                Environment.SpecialFolder.DesktopDirectory
+            );
             string shortcutPath = Path.Combine(desktopPath, $"{linkName}.lnk");
 
             if (!File.Exists(shortcutPath))
             {
                 Log($"   [SHORTCUT] Creating {linkName} on Desktop...");
-                string script = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; $s.Save()";
+                string script =
+                    $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; $s.Save()";
 
-                await RunProcessAsync("powershell", $"-Command \"{script}\"", $"Creating Shortcut: {linkName}", true);
+                await RunProcessAsync(
+                    "powershell",
+                    $"-Command \"{script}\"",
+                    $"Creating Shortcut: {linkName}",
+                    true
+                );
             }
         }
 
@@ -345,7 +417,11 @@ namespace PGInstaller.Viewmodel
 
             if (File.Exists(regFile))
             {
-                await RunProcessAsync("reg", $"import \"{regFile}\"", "Applying Zone 11 Registry Settings");
+                await RunProcessAsync(
+                    "reg",
+                    $"import \"{regFile}\"",
+                    "Applying Zone 11 Registry Settings"
+                );
             }
             else
             {
@@ -363,7 +439,9 @@ namespace PGInstaller.Viewmodel
             {
                 try
                 {
-                    string roamingPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                    string roamingPath = Environment.GetFolderPath(
+                        Environment.SpecialFolder.ApplicationData
+                    );
                     string destDir = Path.Combine(roamingPath, "Radmin");
                     string destFile = Path.Combine(destDir, rpbName);
 
@@ -380,6 +458,64 @@ namespace PGInstaller.Viewmodel
             else
             {
                 Log($"   [WARN] Radmin phonebook not found: {rpbName}");
+            }
+        }
+
+        private async Task InstallWinSCP()
+        {
+            await SmartInstall(
+                "WinSCP",
+                "WinSCP.exe",
+                "/VERYSILENT /NORESTART /ALLUSERS",
+                "WinSCP"
+            );
+
+            string iniName = "WinSCP.ini";
+            string iniSource = Path.Combine(_assetsPath, iniName);
+
+            if (File.Exists(iniSource))
+            {
+                string[] installDirs =
+                {
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                        "WinSCP"
+                    ),
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                        "WinSCP"
+                    ),
+                };
+
+                bool copied = false;
+
+                foreach (string dir in installDirs)
+                {
+                    if (Directory.Exists(dir))
+                    {
+                        try
+                        {
+                            string destFile = Path.Combine(dir, iniName);
+                            File.Copy(iniSource, destFile, true);
+                            Log($"   [CONFIG] WinSCP.ini imported to: {dir}");
+                            copied = true;
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [ERROR] Failed to copy WinSCP.ini: {ex.Message}");
+                        }
+                    }
+                }
+
+                if (!copied)
+                {
+                    Log("   [WARN] WinSCP installation folder not found. INI not imported.");
+                }
+            }
+            else
+            {
+                Log("   [SKIP] WinSCP.ini not found in Assets.");
             }
         }
     }

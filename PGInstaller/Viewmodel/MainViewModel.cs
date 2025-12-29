@@ -10,8 +10,13 @@ using Microsoft.Win32;
 
 namespace PGInstaller.Viewmodel
 {
+
     public partial class MainViewModel : ObservableObject
     {
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+
         [ObservableProperty]
         private string? _logOutput;
 
@@ -243,6 +248,43 @@ namespace PGInstaller.Viewmodel
             }
 
             await ApplyRadminServer();
+            await ApplyWallpaper();
+        }
+
+        private async Task ApplyWallpaper()
+        {
+            string wallpaperName = "PG-wallpaper.jpeg";
+            string wallpaperPath = Path.Combine(_assetsPath, wallpaperName);
+
+            if (File.Exists(wallpaperPath))
+            {
+                Log($"   [CONFIG] Applying Wallpaper: {wallpaperName}...");
+                try
+                {
+                    using (var key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", true))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("WallpaperStyle", "6");
+                            key.SetValue("TileWallpaper", "0");
+                        }
+                    }
+                    await Task.Run(() =>
+                    {
+                        SystemParametersInfo(20, 0, wallpaperPath, 3);
+                    });
+
+                    Log("   [SUCCESS] Wallpaper applied.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to set wallpaper: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log($"   [WARN] Wallpaper not found: {wallpaperName}");
+            }
         }
 
         private async Task InstallZipPackage(

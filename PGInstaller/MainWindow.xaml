@@ -5,10 +5,10 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer (BETA)"
-    Width="1000"
-    Height="760"
-    Background="#F0F2F5"
+    Title="PG-AIO Installer (Beta)"
+    Width="1100"
+    Height="750"
+    Background="#F4F7F9"
     FontFamily="Segoe UI"
     ResizeMode="CanMinimize"
     WindowStartupLocation="CenterScreen"
@@ -17,6 +17,44 @@
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>
+
+    <Window.Resources>
+        <Style x:Key="ModernBtn" TargetType="Button">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            >
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Content="{TemplateBinding Content}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.9" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <DropShadowEffect
+            x:Key="DropShadow"
+            BlurRadius="5"
+            Direction="270"
+            Opacity="0.2"
+            ShadowDepth="2" />
+    </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -33,25 +71,22 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock
-                    Grid.Row="0"
-                    Margin="0,0,0,25"
-                    FontSize="22"
-                    FontWeight="Bold"
-                    Foreground="White"
-                    Text="SETUP WIZARD" />
+                <StackPanel Grid.Row="0" Margin="0,0,0,30">
+                    <TextBlock
+                        FontSize="24"
+                        FontWeight="Bold"
+                        Foreground="White"
+                        Text="PG INSTALLER" />
+                </StackPanel>
 
                 <StackPanel Grid.Row="1" Margin="0,0,0,20">
                     <TextBlock
                         Margin="0,0,0,5"
                         FontSize="11"
-                        FontWeight="SemiBold"
                         Foreground="#BDC3C7"
-                        Text="Department Profile" />
+                        Text="TARGET DEPARTMENT" />
                     <ComboBox
                         Height="40"
                         Padding="10,0"
@@ -72,7 +107,7 @@
                     Grid.Row="2"
                     Margin="0,0,0,20"
                     Foreground="White"
-                    Header="Network Configuration">
+                    Header="NETWORK SETTINGS">
                     <Border
                         Margin="0,5,0,0"
                         Padding="15"
@@ -81,24 +116,25 @@
                         <StackPanel>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition />
-                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                <StackPanel Grid.Column="0">
                                     <TextBlock
                                         FontSize="10"
                                         Foreground="#ECF0F1"
-                                        Text="IP Address" />
+                                        Text="IP ADDRESS" />
                                     <TextBox
                                         Margin="0,2,0,0"
                                         Padding="4"
                                         Text="{Binding TargetIp}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                <StackPanel Grid.Column="2">
                                     <TextBlock
                                         FontSize="10"
                                         Foreground="#ECF0F1"
-                                        Text="Gateway" />
+                                        Text="GATEWAY" />
                                     <TextBox
                                         Margin="0,2,0,0"
                                         Padding="4"
@@ -109,218 +145,203 @@
                             <TextBlock
                                 FontSize="10"
                                 Foreground="#ECF0F1"
-                                Text="Primary DNS" />
+                                Text="PRIMARY DNS" />
                             <TextBox
-                                Margin="0,2,0,8"
+                                Margin="0,2,0,15"
                                 Padding="4"
                                 Text="{Binding TargetDns}" />
 
                             <Button
-                                Height="30"
+                                Height="35"
                                 Background="#E67E22"
-                                BorderThickness="0"
                                 Command="{Binding ChangeIpCommand}"
-                                Content="APPLY NETWORK"
-                                Cursor="Hand"
-                                FontWeight="Bold"
-                                Foreground="White">
-                                <Button.Resources>
-                                    <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="4" />
-                                    </Style>
-                                </Button.Resources>
-                            </Button>
+                                Content="APPLY CONFIG"
+                                Style="{StaticResource ModernBtn}" />
                         </StackPanel>
                     </Border>
                 </Expander>
 
-                <StackPanel Grid.Row="3" Margin="0,0,0,20">
+                <Grid Grid.Row="3" Margin="0,0,0,20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
                     <TextBlock
                         Margin="0,0,0,5"
                         FontSize="11"
-                        FontWeight="SemiBold"
                         Foreground="#BDC3C7"
-                        Text="Package Preview" />
+                        Text="INSTALL MANIFEST" />
                     <Border
+                        Grid.Row="1"
                         Padding="5"
                         Background="#34495E"
                         CornerRadius="5">
                         <ListBox
-                            Height="150"
                             Background="Transparent"
                             BorderThickness="0"
                             Foreground="#ECF0F1"
                             ItemsSource="{Binding PreviewList}"
-                            ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                            ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="5,3" />
+                                    <Setter Property="FontSize" Value="12" />
+                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
                     </Border>
-                </StackPanel>
-
-                <TextBlock
-                    Grid.Row="4"
-                    Margin="0,0,0,5"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    Foreground="#95A5A6"
-                    Text="MAINTENANCE TOOLS" />
-
-                <Grid Grid.Row="5" Margin="0,0,0,20">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <Button
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        Height="35"
-                        Margin="0,0,5,10"
-                        Background="#C0392B"
-                        BorderThickness="0"
-                        Command="{Binding RunDefenderCommand}"
-                        Content="NO DEFENDER"
-                        Cursor="Hand"
-                        FontSize="11"
-                        FontWeight="Bold"
-                        Foreground="White">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4" />
-                            </Style>
-                        </Button.Resources>
-                    </Button>
-
-                    <Button
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        Height="35"
-                        Margin="5,0,0,10"
-                        Background="#8E44AD"
-                        BorderThickness="0"
-                        Command="{Binding RunDebloatCommand}"
-                        Content="DEBLOAT"
-                        Cursor="Hand"
-                        FontSize="11"
-                        FontWeight="Bold"
-                        Foreground="White">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4" />
-                            </Style>
-                        </Button.Resources>
-                    </Button>
-
-                    <Button
-                        Grid.Row="1"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="2"
-                        Height="40"
-                        Background="#2980B9"
-                        BorderThickness="0"
-                        Command="{Binding RunActivatorCommand}"
-                        Content="ACTIVATE WINDOWS"
-                        Cursor="Hand"
-                        FontSize="12"
-                        FontWeight="Bold"
-                        Foreground="White">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4" />
-                            </Style>
-                        </Button.Resources>
-                    </Button>
                 </Grid>
 
                 <Button
-                    Grid.Row="6"
-                    Height="50"
+                    Grid.Row="4"
+                    Height="55"
                     Background="#27AE60"
-                    BorderThickness="0"
                     Command="{Binding InstallCommand}"
                     Content="START INSTALLATION"
-                    Cursor="Hand"
-                    FontSize="15"
-                    FontWeight="Bold"
-                    Foreground="White">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="5">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Opacity" Value="0.9" />
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.5" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                    FontSize="16"
+                    Style="{StaticResource ModernBtn}" />
 
                 <TextBlock
-                    Grid.Row="7"
+                    Grid.Row="5"
                     Margin="0,15,0,0"
                     HorizontalAlignment="Center"
                     FontSize="10"
                     Foreground="#7F8C8D"
-                    Text="PG-AIO Offline Installer v0.1" />
+                    Text="Ensure 'Assets' folder is present." />
             </Grid>
         </Border>
 
-        <Grid Grid.Column="1" Margin="25">
+        <Grid Grid.Column="1" Margin="30">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <StackPanel Grid.Row="0" Margin="0,0,0,25">
+                <TextBlock
+                    Margin="0,0,0,10"
+                    FontSize="14"
+                    FontWeight="Bold"
+                    Foreground="#7F8C8D"
+                    Text="QUICK MAINTENANCE" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="15" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="15" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button
+                        Grid.Column="0"
+                        Height="50"
+                        Background="#C0392B"
+                        Command="{Binding RunDefenderCommand}"
+                        Content="DISABLE DEFENDER"
+                        Style="{StaticResource ModernBtn}" />
+
+                    <Button
+                        Grid.Column="2"
+                        Height="50"
+                        Background="#8E44AD"
+                        Command="{Binding RunDebloatCommand}"
+                        Content="DEBLOAT WINDOWS"
+                        Style="{StaticResource ModernBtn}" />
+
+                    <Button
+                        Grid.Column="4"
+                        Height="50"
+                        Background="#2980B9"
+                        Command="{Binding RunActivatorCommand}"
+                        Content="ACTIVATE WINDOWS"
+                        Style="{StaticResource ModernBtn}" />
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Margin="0,0,0,25">
+                <TextBlock
+                    Margin="0,0,0,10"
+                    FontSize="14"
+                    FontWeight="Bold"
+                    Foreground="#7F8C8D"
+                    Text="MEDICINE CABINET" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="15" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ComboBox
+                        Grid.Column="0"
+                        Height="40"
+                        Padding="10,0"
+                        VerticalContentAlignment="Center"
+                        Background="White"
+                        BorderBrush="#BDC3C7"
+                        FontSize="14"
+                        ItemsSource="{Binding MedicineList}"
+                        SelectedItem="{Binding SelectedMedicineName}">
+                        <ComboBox.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </ComboBox.Resources>
+                    </ComboBox>
+
+                    <Button
+                        Grid.Column="2"
+                        Background="#34495E"
+                        Command="{Binding RunMedicineCommand}"
+                        Content="RUN TOOL"
+                        Style="{StaticResource ModernBtn}" />
+                </Grid>
+            </StackPanel>
+
             <TextBlock
-                Margin="0,0,0,15"
-                FontSize="20"
-                FontWeight="SemiBold"
-                Foreground="#34495E"
-                Text="Activity Log" />
+                Grid.Row="2"
+                Margin="0,0,0,10"
+                FontSize="14"
+                FontWeight="Bold"
+                Foreground="#7F8C8D"
+                Text="LIVE TERMINAL" />
 
             <Border
-                Grid.Row="1"
-                Background="White"
-                BorderBrush="#DCDCDC"
+                Grid.Row="3"
+                Background="#1E1E1E"
+                BorderBrush="#333"
                 BorderThickness="1"
                 CornerRadius="6">
                 <Grid>
                     <TextBox
-                        Margin="10"
+                        Margin="15"
+                        Background="Transparent"
                         BorderThickness="0"
                         FontFamily="Consolas"
                         FontSize="13"
+                        Foreground="#00FF00"
                         IsReadOnly="True"
                         Text="{Binding LogOutput}"
                         TextChanged="TextBox_TextChanged"
                         TextWrapping="Wrap"
                         VerticalScrollBarVisibility="Auto" />
 
-                    <Border Background="#CCFFFFFF" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Background="#CC2C3E50" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock
-                                FontSize="24"
+                                FontSize="20"
                                 FontWeight="Bold"
-                                Foreground="#2C3E50"
-                                Text="PROCESSING..." />
+                                Foreground="White"
+                                Text="PROCESSING REQUEST..." />
                             <ProgressBar
-                                Width="250"
-                                Height="6"
+                                Width="300"
+                                Height="4"
                                 Margin="0,15,0,0"
-                                Background="#ECF0F1"
+                                Background="#34495E"
                                 BorderThickness="0"
                                 Foreground="#27AE60"
                                 IsIndeterminate="True" />
