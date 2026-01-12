@@ -47,6 +47,7 @@ namespace PGInstaller.Viewmodel
 
             await InstallCommonPackages();
             await InstallPIMS();
+            await InstallFSDM();
         }
     }
 }

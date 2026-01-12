@@ -1,8 +1,9 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Win32;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using System.Windows;
-using Microsoft.Win32;
 
 namespace PGInstaller.Viewmodel
 {
@@ -20,9 +21,7 @@ namespace PGInstaller.Viewmodel
                 );
 
                 string mmsSource = Path.Combine(_assetsPath, "MMS.ws");
-                string desktopPath = Environment.GetFolderPath(
-                    Environment.SpecialFolder.DesktopDirectory
-                );
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 string mmsDest = Path.Combine(desktopPath, "MMS.ws");
 
                 if (File.Exists(mmsSource))
@@ -47,6 +46,26 @@ namespace PGInstaller.Viewmodel
                 else
                 {
                     Log("   [WARNING] MMS.ws not found in Assets.");
+                }
+
+                string kmpSource = Path.Combine(_assetsPath, "AS400.KMP");
+                string kmpDest = @"C:\AS400.KMP";
+
+                if (File.Exists(kmpSource))
+                {
+                    try
+                    {
+                        File.Copy(kmpSource, kmpDest, true);
+                        Log("   [SUCCESS] Copied AS400.KMP to C:\\.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Failed to copy AS400.KMP: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Log("   [WARNING] AS400.KMP not found in Assets.");
                 }
             }
             else
@@ -179,7 +198,7 @@ namespace PGInstaller.Viewmodel
             Log("   [CONFIG] Requesting IP Address...");
 
             string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Server IP Address:", "192.92.1.100")
+                ShowInputDialog("Enter Server IP Address config for FIDB and FIHO:", "192.92.1.100")
             );
 
             if (!string.IsNullOrWhiteSpace(ipAddress))
@@ -254,7 +273,7 @@ namespace PGInstaller.Viewmodel
 
         private string ShowInputDialog(string question, string defaultAnswer = "")
         {
-            System.Windows.Window window = new System.Windows.Window()
+            System.Windows.Window window = new()
             {
                 Title = "Configuration",
                 Width = 350,
@@ -312,7 +331,124 @@ namespace PGInstaller.Viewmodel
             return result;
         }
 
-        private async Task InstallFSDM() { }
+        private async Task InstallFSDM()
+        {
+            string fsdmZip = Path.Combine(_assetsPath, "FSDM.zip");
+            string tempFsdmRoot = Path.Combine(Path.GetTempPath(), "PG_FSDM_Install");
+
+            if (Directory.Exists(tempFsdmRoot))
+                try { Directory.Delete(tempFsdmRoot, true); } catch { }
+
+            if (!File.Exists(fsdmZip))
+            {
+                Log("   [ERROR] FSDM.zip not found in Assets.");
+                return;
+            }
+
+            Log("   [INIT] Extracting FSDM.zip...");
+            try
+            {
+                Directory.CreateDirectory(tempFsdmRoot);
+                await Task.Run(() => ZipFile.ExtractToDirectory(fsdmZip, tempFsdmRoot));
+            }
+            catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
+
+            string ssce86 = Path.Combine(tempFsdmRoot, "SSCERuntime_x86-ENU.msi");
+            string ssce64 = Path.Combine(tempFsdmRoot, "SSCERuntime_x64-ENU.msi");
+
+            if (File.Exists(ssce86))
+                await RunProcessAsync("msiexec.exe", $"/i \"{ssce86}\" /quiet", "Installing SSCE Runtime x86");
+
+            if (File.Exists(ssce64))
+                await RunProcessAsync("msiexec.exe", $"/i \"{ssce64}\" /quiet", "Installing SSCE Runtime x64");
+
+            string fsDevZip = Path.Combine(tempFsdmRoot, "FSDevMan.zip");
+            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string fsDestDir = Path.Combine(progFiles, "FSDevMan");
+
+            if (File.Exists(fsDevZip))
+            {
+                Log("   [EXTRACT] Installing FSDevMan...");
+                if (!Directory.Exists(fsDestDir))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(fsDestDir);
+                        await Task.Run(() => ZipFile.ExtractToDirectory(fsDevZip, fsDestDir));
+                    }
+                    catch (Exception ex) { Log($"   [ERROR] FSDevMan extract failed: {ex.Message}"); }
+                }
+
+                string exePath = Path.Combine(fsDestDir, "FSDeviceManager.exe");
+                if (File.Exists(exePath))
+                {
+                    await CreateDesktopShortcut("FS Device Manager", exePath);
+                    try
+                    {
+                        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers", true))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue(exePath, "~ RUNASADMIN");
+                                Log("   [CONFIG] Applied 'Run as Administrator' flag.");
+                            }
+                        }
+                    }
+                    catch (Exception ex) { Log($"   [WARN] Failed to set Admin flag: {ex.Message}"); }
+                }
+            }
+
+            string sdkZip = Path.Combine(tempFsdmRoot, "SDK.zip");
+            string sdkTempDir = Path.Combine(tempFsdmRoot, "SDK_Temp");
+
+            if (File.Exists(sdkZip))
+            {
+                Log("   [EXTRACT] Preparing SDK Installer...");
+                try
+                {
+                    Directory.CreateDirectory(sdkTempDir);
+                    await Task.Run(() => ZipFile.ExtractToDirectory(sdkZip, sdkTempDir));
+
+                    string regBat = Path.Combine(sdkTempDir, "Register_SDK_x64.bat");
+
+                    if (File.Exists(regBat))
+                    {
+                        
+                        var startInfo = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c \"{regBat}\"",
+                            WorkingDirectory = sdkTempDir,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        };
+
+                        await RunCustomProcess(startInfo, "Registering SDK (Copying to System32)");
+                    }
+                    else
+                    {
+                        Log("   [ERROR] Register_SDK_x64.bat not found in SDK zip.");
+                    }
+                }
+                catch (Exception ex) { Log($"   [ERROR] SDK Installation failed: {ex.Message}"); }
+            }
+            string dbUpdater = "FSDM Database Updater.exe";
+            string dbSource = Path.Combine(tempFsdmRoot, dbUpdater);
+
+            if (File.Exists(dbSource))
+            {
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string dbDest = Path.Combine(desktop, dbUpdater);
+                try
+                {
+                    File.Copy(dbSource, dbDest, true);
+                    Log("   [COPY] FSDM Database Updater copied to Desktop.");
+                }
+                catch (Exception ex) { Log($"   [ERROR] Failed copy updater: {ex.Message}"); }
+            }
+        }
 
         private async Task InstallCorelPSIllu()
         {
@@ -516,6 +652,85 @@ namespace PGInstaller.Viewmodel
             else
             {
                 Log("   [SKIP] WinSCP.ini not found in Assets.");
+            }
+        }
+
+        private async Task RunChromeBookmarkScript()
+        {
+            Log("------------------------------------------------");
+            Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
+            string dummyIp = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter DUMMY IP (Puregold Web/Fauxton):", "192.168.1.1"));
+
+            if (string.IsNullOrWhiteSpace(dummyIp)) { Log("   [SKIP] Dummy IP not provided. CBM Script skipped."); return; }
+
+            string couchIp = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter STORE COUCH IP (CouchDB):", "192.168.1.2"));
+
+            if (string.IsNullOrWhiteSpace(couchIp)) { Log("   [SKIP] Couch IP not provided. CBM Script skipped."); return; }
+            string scriptName = "cbm.ps1";
+            string csvName = "port# & IP ZONE11.csv";
+            string tempDir = Path.Combine(Path.GetTempPath(), "PG_CBM_Exec");
+
+            try
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                Directory.CreateDirectory(tempDir);
+                string sourceCsv = Path.Combine(_assetsPath, csvName);
+                if (!File.Exists(sourceCsv))
+                {
+                    var files = Directory.GetFiles(_assetsPath, "*.csv", SearchOption.AllDirectories);
+                    var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(csvName, StringComparison.OrdinalIgnoreCase));
+                    if (match != null) sourceCsv = match;
+                }
+
+                if (File.Exists(sourceCsv))
+                {
+                    File.Copy(sourceCsv, Path.Combine(tempDir, csvName), true);
+                }
+                else
+                {
+                    Log($"   [ERROR] Required CSV '{csvName}' not found. Script may fail.");
+                    return;
+                }
+                string sourceScript = Path.Combine(_assetsPath, scriptName);
+                if (!File.Exists(sourceScript))
+                {
+                    Log($"   [ERROR] {scriptName} not found in Assets.");
+                    return;
+                }
+
+                string scriptContent = File.ReadAllText(sourceScript);
+                scriptContent = Regex.Replace(scriptContent,
+                    @"(# Puregold Web System Based on target dummy IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
+                    $"$1{dummyIp}");
+                scriptContent = Regex.Replace(scriptContent,
+                    @"(# Fauxton based on target dummy IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
+                    $"$1{dummyIp}");
+                scriptContent = Regex.Replace(scriptContent,
+                    @"(# CouchDB on target store couch IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
+                    $"$1{couchIp}");
+                string modifiedScriptPath = Path.Combine(tempDir, "cbm_modified.ps1");
+                File.WriteAllText(modifiedScriptPath, scriptContent);
+                Log("   [EXEC] Running CBM Script...");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{modifiedScriptPath}\"",
+                    WorkingDirectory = tempDir, 
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                await RunCustomProcess(startInfo, "Chrome Bookmark Configuration");
+                Log("   [SUCCESS] CBM Script completed.");
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] CBM execution failed: {ex.Message}");
             }
         }
     }

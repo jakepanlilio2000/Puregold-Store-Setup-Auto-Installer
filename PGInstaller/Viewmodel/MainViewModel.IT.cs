@@ -20,6 +20,7 @@ namespace PGInstaller.Viewmodel
             await InstallRadminViewer();
             await InstallMMS();
             await InstallPIMS();
+            await RunChromeBookmarkScript();
         }
     }
 }
