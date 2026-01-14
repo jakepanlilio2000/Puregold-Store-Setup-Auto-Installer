@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using PGInstaller.Viewmodel;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 namespace PGInstaller
@@ -15,5 +16,13 @@ namespace PGInstaller
             (sender as TextBox)?.ScrollToEnd();
         }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            if (DataContext is MainViewModel vm)
+            {
+                vm.CleanupSession();
+            }
+        }
     }
 }

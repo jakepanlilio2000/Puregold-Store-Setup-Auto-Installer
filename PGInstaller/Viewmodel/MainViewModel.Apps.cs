@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace PGInstaller.Viewmodel
@@ -659,15 +658,18 @@ namespace PGInstaller.Viewmodel
         {
             Log("------------------------------------------------");
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
+
+            // 1. Get Inputs
             string dummyIp = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter DUMMY IP (Puregold Web/Fauxton):", "192.168.1.1"));
 
-            if (string.IsNullOrWhiteSpace(dummyIp)) { Log("   [SKIP] Dummy IP not provided. CBM Script skipped."); return; }
+            if (string.IsNullOrWhiteSpace(dummyIp)) { Log("   [SKIP] Dummy IP missing."); return; }
 
             string couchIp = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter STORE COUCH IP (CouchDB):", "192.168.1.2"));
 
-            if (string.IsNullOrWhiteSpace(couchIp)) { Log("   [SKIP] Couch IP not provided. CBM Script skipped."); return; }
+            if (string.IsNullOrWhiteSpace(couchIp)) { Log("   [SKIP] Couch IP missing."); return; }
+
             string scriptName = "cbm.ps1";
             string csvName = "port# & IP ZONE11.csv";
             string tempDir = Path.Combine(Path.GetTempPath(), "PG_CBM_Exec");
@@ -676,7 +678,9 @@ namespace PGInstaller.Viewmodel
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
+
                 string sourceCsv = Path.Combine(_assetsPath, csvName);
+
                 if (!File.Exists(sourceCsv))
                 {
                     var files = Directory.GetFiles(_assetsPath, "*.csv", SearchOption.AllDirectories);
@@ -690,7 +694,7 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log($"   [ERROR] Required CSV '{csvName}' not found. Script may fail.");
+                    Log($"   [ERROR] CSV '{csvName}' not found. Script will fail.");
                     return;
                 }
                 string sourceScript = Path.Combine(_assetsPath, scriptName);
@@ -701,17 +705,12 @@ namespace PGInstaller.Viewmodel
                 }
 
                 string scriptContent = File.ReadAllText(sourceScript);
-                scriptContent = Regex.Replace(scriptContent,
-                    @"(# Puregold Web System Based on target dummy IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
-                    $"$1{dummyIp}");
-                scriptContent = Regex.Replace(scriptContent,
-                    @"(# Fauxton based on target dummy IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
-                    $"$1{dummyIp}");
-                scriptContent = Regex.Replace(scriptContent,
-                    @"(# CouchDB on target store couch IP[\s\S]+?url\s+=\s+""http://)[\d\.]+",
-                    $"$1{couchIp}");
+
+                scriptContent = scriptContent.Replace("{{DUMMY_IP}}", dummyIp);
+                scriptContent = scriptContent.Replace("{{COUCH_IP}}", couchIp);
                 string modifiedScriptPath = Path.Combine(tempDir, "cbm_modified.ps1");
                 File.WriteAllText(modifiedScriptPath, scriptContent);
+
                 Log("   [EXEC] Running CBM Script...");
 
                 var startInfo = new ProcessStartInfo
@@ -730,7 +729,7 @@ namespace PGInstaller.Viewmodel
             }
             catch (Exception ex)
             {
-                Log($"   [ERROR] CBM execution failed: {ex.Message}");
+                Log($"   [ERROR] CBM Execution Failed: {ex.Message}");
             }
         }
     }
