@@ -19,9 +19,10 @@ namespace PGInstaller.Viewmodel
                     "MMS (IBM Personal Communications)"
                 );
 
-                string mmsSource = Path.Combine(_assetsPath, "MMS.ws");
+                string mmsFileName = "MMS.ws";
+                string mmsSource = Path.Combine(_assetsPath, mmsFileName);
                 string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                string mmsDest = Path.Combine(desktopPath, "MMS.ws");
+                string mmsDest = Path.Combine(desktopPath, mmsFileName);
 
                 if (File.Exists(mmsSource))
                 {
@@ -30,24 +31,24 @@ namespace PGInstaller.Viewmodel
                         try
                         {
                             File.Copy(mmsSource, mmsDest);
-                            Log("   [SUCCESS] Copied MMS.ws to Desktop.");
+                            Log($"   [COPY] Copied {mmsFileName} to Desktop.");
                         }
                         catch (Exception ex)
                         {
-                            Log($"   [ERROR] Failed to copy MMS.ws: {ex.Message}");
+                            Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}");
                         }
                     }
                     else
                     {
-                        Log("   [SKIP] MMS.ws already exists on Desktop.");
+                        Log($"   [SKIP] {mmsFileName} already exists on Desktop.");
                     }
                 }
                 else
                 {
-                    Log("   [WARNING] MMS.ws not found in Assets.");
+                    Log($"   [WARN] {mmsFileName} not found in Assets root.");
                 }
-
-                string kmpSource = Path.Combine(_assetsPath, "AS400.KMP");
+                string kmpFileName = "AS400.KMP";
+                string kmpSource = Path.Combine(_assetsPath, kmpFileName);
                 string kmpDest = @"C:\AS400.KMP";
 
                 if (File.Exists(kmpSource))
@@ -55,16 +56,16 @@ namespace PGInstaller.Viewmodel
                     try
                     {
                         File.Copy(kmpSource, kmpDest, true);
-                        Log("   [SUCCESS] Copied AS400.KMP to C:\\.");
+                        Log($"   [COPY] Copied {kmpFileName} to C:\\.");
                     }
                     catch (Exception ex)
                     {
-                        Log($"   [ERROR] Failed to copy AS400.KMP: {ex.Message}");
+                        Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}");
                     }
                 }
                 else
                 {
-                    Log("   [WARNING] AS400.KMP not found in Assets.");
+                    Log($"   [WARN] {kmpFileName} not found in Assets.");
                 }
             }
             else
@@ -72,7 +73,6 @@ namespace PGInstaller.Viewmodel
                 Log("   [SKIP] MMS (IBM Personal Communications) is already installed.");
             }
         }
-
         private async Task ApplyRadminServer()
         {
             string installBatPath = Path.Combine(_assetsPath, "install.bat");
@@ -108,9 +108,83 @@ namespace PGInstaller.Viewmodel
             }
         }
 
+        private async Task InstallInventoryTools()
+        {
+            string zipName = "inventorytools.zip";
+            string zipPath = Path.Combine(_assetsPath, zipName);
+            string targetDir = @"C:\wamp64\www\puregold";
+
+            if (File.Exists(zipPath))
+            {
+                Log($"   [DEPLOY] Deploying {zipName}...");
+
+                try
+                {
+                    if (!Directory.Exists(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    await Task.Run(() =>
+                    {
+                        ZipFile.ExtractToDirectory(zipPath, targetDir, true);
+                    });
+
+                    Log("   [SUCCESS] Inventory Tools deployed.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to deploy Inventory Tools: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log($"   [WARN] {zipName} not found in Assets.");
+            }
+        }
+
         private async Task PasteVARIANCE()
         {
-            //variance function
+            await SmartInstall("WampServer 3.4", "wampserver.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
+
+            string varianceZip = Path.Combine(_assetsPath, "variance.zip");
+            string wampRoot = @"C:\wamp64\www";
+            string targetDir = Path.Combine(wampRoot, "puregold");
+
+            if (File.Exists(varianceZip))
+            {
+                Log("   [DEPLOY] Setting up Variance System...");
+
+                try
+                {
+                    if (!Directory.Exists(wampRoot))
+                    {
+                        Directory.CreateDirectory(wampRoot);
+                    }
+
+                    if (!Directory.Exists(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+
+                    Log($"   [EXTRACT] Unzipping variance.zip to {targetDir}...");
+
+                    await Task.Run(() =>
+                    {
+                        ZipFile.ExtractToDirectory(varianceZip, targetDir, true);
+                    });
+
+                    Log("   [SUCCESS] Variance System deployed.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to deploy Variance: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log("   [WARN] variance.zip not found in Assets.");
+            }
         }
 
         private async Task InstallPIMS()

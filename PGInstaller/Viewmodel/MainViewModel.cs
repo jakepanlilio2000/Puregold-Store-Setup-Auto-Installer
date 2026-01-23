@@ -208,14 +208,30 @@ namespace PGInstaller.Viewmodel
 
 
             bool isWpsRegPresent = false;
-            try { using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Kingsoft")) if (key != null) isWpsRegPresent = true; } catch { }
+            try { using var key = Registry.CurrentUser.OpenSubKey(@"Software\Kingsoft"); if (key != null) isWpsRegPresent = true; } catch { }
 
             if (!IsAppInstalled("WPS Office") && !isWpsRegPresent)
             {
-
                 await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
-                string wpsExtractDir = Path.Combine(_assetsPath, "WPS"); 
+
+                Log("   [PATCH] Stopping WPS processes to unlock files...");
+                await Task.Run(() =>
+                {
+                    string[] wpsProcs = { "wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate" };
+                    foreach (var procName in wpsProcs)
+                    {
+                        try
+                        {
+                            foreach (var p in Process.GetProcessesByName(procName)) p.Kill();
+                        }
+                        catch { }
+                    }
+                });
+                await Task.Delay(2000); 
+
+                string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
                 string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
+
                 if (!File.Exists(authDllSource))
                 {
                     var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
@@ -226,6 +242,7 @@ namespace PGInstaller.Viewmodel
                 {
                     string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                     string kingsoftRoot = Path.Combine(appData, @"Kingsoft\WPS Office");
+
                     if (Directory.Exists(kingsoftRoot))
                     {
                         var office6Dirs = Directory.GetDirectories(kingsoftRoot, "office6", SearchOption.AllDirectories);
@@ -234,7 +251,7 @@ namespace PGInstaller.Viewmodel
                             string authDllDest = Path.Combine(office6Dirs[0], "auth.dll");
                             try
                             {
-                                File.Copy(authDllSource, authDllDest, true);
+                                File.Copy(authDllSource, authDllDest, true); 
                                 Log("   [SUCCESS] WPS auth.dll patched successfully.");
                             }
                             catch (Exception ex) { Log($"   [ERROR] Failed to patch WPS auth.dll: {ex.Message}"); }

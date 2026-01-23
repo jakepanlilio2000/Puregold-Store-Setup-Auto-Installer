@@ -12,7 +12,9 @@ namespace PGInstaller.Viewmodel
         {
             await InstallCommonPackages();
             await InstallMMS();
+
             await PasteVARIANCE();
+            await InstallInventoryTools();
             await InstallPIMS();
         }
     }
