@@ -143,47 +143,199 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-        private async Task PasteVARIANCE()
+        private async Task PinToTaskbar(string appName, string exeName)
         {
-            await SmartInstall("WampServer 3.4", "wampserver.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
+            string[] searchPaths = {
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+                Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+                @"C:\Program Files\Google\Chrome\Application",
+                @"C:\Program Files\Mozilla Firefox",
+                @"C:\Program Files\Mozilla Thunderbird"
+            };
 
-            string varianceZip = Path.Combine(_assetsPath, "variance.zip");
-            string wampRoot = @"C:\wamp64\www";
-            string targetDir = Path.Combine(wampRoot, "puregold");
+            string? shortcutPath = null;
 
-            if (File.Exists(varianceZip))
+            foreach (var dir in searchPaths)
             {
-                Log("   [DEPLOY] Setting up Variance System...");
+                if (Directory.Exists(dir))
+                {
+                    var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
+                        .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
 
+                    var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
+                                                          Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        shortcutPath = match;
+                        break;
+                    }
+                }
+            }
+
+            if (shortcutPath != null)
+            {
                 try
                 {
-                    if (!Directory.Exists(wampRoot))
+                    string script = $@"
+                    $path = '{shortcutPath}'
+                    $shell = New-Object -ComObject Shell.Application
+                    $folder = $shell.NameSpace((Get-Item $path).DirectoryName)
+                    $item = $folder.ParseName((Get-Item $path).Name)
+                    $verb = $item.Verbs() | Where-Object {{ $_.Name -like '*taskbar*' }}
+                    if ($verb) {{ $verb.DoIt() }}
+                    ";
+
+                    await RunProcessAsync("powershell.exe", $"-Command \"{script}\"", $"Pinning {appName}", true);
+                }
+                catch {  }
+            }
+        }
+
+        private async Task InstallWampServer()
+        {
+            if (!File.Exists(@"C:\wamp64\wampmanager.exe"))
+            {
+                await SmartInstall("WampServer 3.4", "wampserver.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
+            }
+            else
+            {
+                Log("   [SKIP] WampServer appears to be installed.");
+            }
+
+            Log("   [CONFIG] Configuring WampServer Environment...");
+
+            string wampBase = @"C:\wamp64";
+
+            if (Directory.Exists(wampBase))
+            {
+                try
+                {
+                    string apacheRoot = Path.Combine(wampBase, @"bin\apache");
+                    string? apacheVerDir = Directory.Exists(apacheRoot)
+                        ? Directory.GetDirectories(apacheRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("apache"))
+                        : null;
+
+                    if (apacheVerDir != null)
                     {
-                        Directory.CreateDirectory(wampRoot);
+                        string vhostPath = Path.Combine(apacheVerDir, @"conf\extra\httpd-vhosts.conf");
+                        if (File.Exists(vhostPath))
+                        {
+                            string newVhostConfig = @"
+# Virtual Hosts
+#
+<VirtualHost _default_:80>
+  ServerName localhost
+  ServerAlias localhost
+  DocumentRoot ""${INSTALL_DIR}/www/puregold""
+  <Directory ""${INSTALL_DIR}/www/puregold/"">
+    Options +Indexes +Includes +FollowSymLinks +MultiViews
+    AllowOverride All
+    Require all granted
+  </Directory>
+</VirtualHost>";
+                            File.WriteAllText(vhostPath, newVhostConfig);
+                            Log("   [CONFIG] httpd-vhosts.conf updated.");
+                        }
                     }
 
-                    if (!Directory.Exists(targetDir))
+                    string phpRoot = Path.Combine(wampBase, @"bin\php");
+                    string? phpVerDir = Directory.Exists(phpRoot)
+                        ? Directory.GetDirectories(phpRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("php8.3"))
+                        : null;
+
+                    if (phpVerDir != null)
                     {
-                        Directory.CreateDirectory(targetDir);
+                        string extDir = Path.Combine(phpVerDir, "ext");
+                        string dll1 = "php_sqlsrv_83_ts_x64.dll";
+                        string dll2 = "php_pdo_sqlsrv_83_ts_x64.dll";
+
+                        string sourceDll1 = Path.Combine(_assetsPath, dll1);
+                        string sourceDll2 = Path.Combine(_assetsPath, dll2);
+
+                        if (File.Exists(sourceDll1)) File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
+                        if (File.Exists(sourceDll2)) File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
+                        string iniPath = Path.Combine(phpVerDir, "phpForApache.ini");
+                        if (File.Exists(iniPath))
+                        {
+                            string content = File.ReadAllText(iniPath);
+                            if (!content.Contains(dll1))
+                            {
+                                content += Environment.NewLine + $"; --- Added by PGInstaller ---" + Environment.NewLine;
+                                content += $"extension={dll1}" + Environment.NewLine;
+                                content += $"extension={dll2}" + Environment.NewLine;
+                                File.WriteAllText(iniPath, content);
+                                Log("   [CONFIG] phpForApache.ini updated with SQL drivers.");
+                            }
+                        }
                     }
 
-                    Log($"   [EXTRACT] Unzipping variance.zip to {targetDir}...");
-
-                    await Task.Run(() =>
+                    string wampExe = Path.Combine(wampBase, "wampmanager.exe");
+                    if (File.Exists(wampExe))
                     {
-                        ZipFile.ExtractToDirectory(varianceZip, targetDir, true);
-                    });
-
-                    Log("   [SUCCESS] Variance System deployed.");
+                        Log("   [START] Starting WampServer...");
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = wampExe,
+                            UseShellExecute = true,
+                            Verb = "runas"
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Log($"   [ERROR] Failed to deploy Variance: {ex.Message}");
+                    Log($"   [ERROR] Wamp Config Failed: {ex.Message}");
                 }
+            }
+        }
+
+        private async Task PasteVARIANCE()
+        {
+            string varianceZip = Path.Combine(_assetsPath, "variance.zip");
+            string targetDir = @"C:\wamp64\www\puregold";
+
+            if (File.Exists(varianceZip))
+            {
+                Log("   [DEPLOY] Unzipping Variance System...");
+                try
+                {
+                    if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                    await Task.Run(() => ZipFile.ExtractToDirectory(varianceZip, targetDir, true));
+                    Log("   [SUCCESS] Variance deployed to www/puregold.");
+                }
+                catch (Exception ex) { Log($"   [ERROR] Variance Deploy failed: {ex.Message}"); }
             }
             else
             {
                 Log("   [WARN] variance.zip not found in Assets.");
+            }
+        }
+
+        private async Task InstallNetFx3()
+        {
+            bool success = await RunProcessAsync(
+                "dism",
+                "/online /enable-feature /featurename:NetFX3 /all /NoRestart",
+                "Enabling .NET Framework 3.5 (Online)"
+            );
+
+            if (!success)
+            {
+                Log("   [FALLBACK] Standard enable failed. Attempting offline install...");
+
+                string netfxCab = Path.Combine(_assetsPath, "netfx3.cab");
+
+                if (File.Exists(netfxCab))
+                {
+                    await RunProcessAsync(
+                        "dism",
+                        $"/online /add-package /packagepath:\"{netfxCab}\" /NoRestart",
+                        "Installing .NET 3.5 (Offline CAB)"
+                    );
+                }
+                else
+                {
+                    Log($"   [ERROR] Fallback failed: netfx3.cab not found in {_assetsPath}");
+                }
             }
         }
 

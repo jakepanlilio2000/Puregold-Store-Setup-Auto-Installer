@@ -266,6 +266,10 @@ namespace PGInstaller.Viewmodel
 
             await ApplyRadminServer();
             await ApplyWallpaper();
+            Log("   [CONFIG] Pinning Shortcuts to Taskbar...");
+            await PinToTaskbar("Google Chrome", "chrome.exe");
+            await PinToTaskbar("Mozilla Firefox", "firefox.exe");
+            await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
         }
 
         private async Task ApplyWallpaper()
