@@ -54,6 +54,7 @@ namespace PGInstaller.Viewmodel
             SelectedDepartment = "IT";
             Log("Welcome to PG Installer. Select a department to begin.");
             _ = CheckDefender();
+            _ = CheckSystemRestoreStatus();
         }
 
         [RelayCommand]
@@ -61,6 +62,14 @@ namespace PGInstaller.Viewmodel
         {
             if (IsBusy)
                 return;
+
+            if (IsRestorePointEnabled)
+            {
+                IsBusy = true;
+                await CreateSystemRestorePoint();
+                IsBusy = false;
+            }
+
             IsBusy = true;
             LogOutput = "";
             Log("------------------------------------------------");

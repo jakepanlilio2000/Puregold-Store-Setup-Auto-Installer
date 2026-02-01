@@ -5,9 +5,9 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer (Beta 5)"
-    Width="1150"
-    Height="800"
+    Title="PG-AIO Installer (Beta 7)"
+    Width="1200"
+    Height="850"
     MinWidth="1000"
     MinHeight="700"
     Background="#F9FAFB"
@@ -28,6 +28,7 @@
         <SolidColorBrush x:Key="PGRed" Color="#C0392B" />
         <SolidColorBrush x:Key="PGPurple" Color="#8E44AD" />
         <SolidColorBrush x:Key="PGBlue" Color="#2980B9" />
+        <SolidColorBrush x:Key="PGDarkBlue" Color="#34495E" />
         <SolidColorBrush x:Key="PGTextDark" Color="#2C3E50" />
         <SolidColorBrush x:Key="PGTextLight" Color="#7F8C8D" />
 
@@ -111,7 +112,7 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -122,6 +123,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -135,7 +137,7 @@
                     <TextBlock
                         FontSize="12"
                         Foreground="#A3E635"
-                        Text="AIO Installer for store setup" />
+                        Text="AIO Deployment Suite" />
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Margin="0,0,0,25">
@@ -208,7 +210,6 @@
                                         Text="{Binding TargetGateway}" />
                                 </StackPanel>
                             </Grid>
-
                             <TextBlock
                                 FontSize="10"
                                 Foreground="#D1D5DB"
@@ -218,7 +219,6 @@
                                 Background="#00381a"
                                 Foreground="White"
                                 Text="{Binding TargetDns}" />
-
                             <Button
                                 Height="32"
                                 Background="{StaticResource PGGold}"
@@ -230,7 +230,7 @@
                     </Border>
                 </Expander>
 
-                <Grid Grid.Row="3" Margin="0,0,0,20">
+                <Grid Grid.Row="3" Margin="0,0,0,10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -251,54 +251,44 @@
                             BorderThickness="0"
                             Foreground="#E5E7EB"
                             ItemsSource="{Binding PreviewList}"
-                            ScrollViewer.VerticalScrollBarVisibility="Auto">
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
-                                    <Setter Property="Padding" Value="6,4" />
-                                    <Setter Property="FontSize" Value="12" />
-                                    <Setter Property="IsHitTestVisible" Value="False" />
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="ListBoxItem">
-                                                <Border
-                                                    x:Name="Bd"
-                                                    Padding="{TemplateBinding Padding}"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    SnapsToDevicePixels="true">
-                                                    <ContentPresenter
-                                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </ListBox.ItemContainerStyle>
-                        </ListBox>
+                            ScrollViewer.VerticalScrollBarVisibility="Auto" />
                     </Border>
                 </Grid>
 
-                <Button
-                    Grid.Row="4"
-                    Height="50"
-                    Background="{StaticResource PGGold}"
-                    Command="{Binding InstallCommand}"
-                    Content="START INSTALLATION"
-                    FontSize="16"
-                    Foreground="{StaticResource PGTextDark}"
-                    Style="{StaticResource ModernBtn}">
-                    <Button.Effect>
-                        <DropShadowEffect
-                            BlurRadius="10"
-                            Direction="270"
-                            Opacity="0.3"
-                            ShadowDepth="3"
-                            Color="Black" />
-                    </Button.Effect>
-                </Button>
+                <StackPanel Grid.Row="4" Margin="0,10,0,0">
+                    <CheckBox
+                        Margin="0,0,0,12"
+                        HorizontalAlignment="Left"
+                        Content="Create Restore Point"
+                        FontSize="13"
+                        Foreground="#86EFAC"
+                        IsChecked="{Binding IsRestorePointEnabled}">
+                        <CheckBox.ToolTip>
+                            <ToolTip Content="Will be unchecked if System Restore is disabled in Windows." />
+                        </CheckBox.ToolTip>
+                        <CheckBox.LayoutTransform>
+                            <ScaleTransform ScaleX="1.1" ScaleY="1.1" />
+                        </CheckBox.LayoutTransform>
+                    </CheckBox>
+
+                    <Button
+                        Height="55"
+                        Background="{StaticResource PGGold}"
+                        Command="{Binding InstallCommand}"
+                        Content="START INSTALLATION"
+                        FontSize="16"
+                        Foreground="{StaticResource PGTextDark}"
+                        Style="{StaticResource ModernBtn}">
+                        <Button.Effect>
+                            <DropShadowEffect
+                                BlurRadius="10"
+                                Direction="270"
+                                Opacity="0.3"
+                                ShadowDepth="3"
+                                Color="Black" />
+                        </Button.Effect>
+                    </Button>
+                </StackPanel>
 
                 <TextBlock
                     Grid.Row="5"
@@ -307,14 +297,24 @@
                     FontSize="10"
                     Foreground="#6EE7B7"
                     Text="Ensure 'Assets' folder is present." />
+                <TextBlock
+                    Grid.Row="6"
+                    Margin="0,8,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="10"
+                    Foreground="#95A5A6"
+                    Text="Designed for Zone 11, developed by Jake Ashley Panlilio IT - San Fernando"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
             </Grid>
         </Border>
 
         <ScrollViewer
             Grid.Column="1"
-            Padding="30"
+            Padding="40"
             VerticalScrollBarVisibility="Auto">
             <StackPanel>
+
                 <TextBlock
                     Margin="0,0,0,10"
                     FontSize="18"
@@ -324,6 +324,8 @@
                 <Border Margin="0,0,0,30" Style="{StaticResource CardStyle}">
                     <Grid Margin="20">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="20" />
                             <ColumnDefinition Width="*" />
@@ -345,7 +347,7 @@
                                 <TextBlock
                                     Margin="0,5,0,0"
                                     FontWeight="Bold"
-                                    Text="Disable Defender" />
+                                    Text="No Defender" />
                             </StackPanel>
                         </Button>
 
@@ -363,7 +365,7 @@
                                 <TextBlock
                                     Margin="0,5,0,0"
                                     FontWeight="Bold"
-                                    Text="Debloat Windows" />
+                                    Text="Debloat" />
                             </StackPanel>
                         </Button>
 
@@ -381,9 +383,139 @@
                                 <TextBlock
                                     Margin="0,5,0,0"
                                     FontWeight="Bold"
-                                    Text="Activate Windows" />
+                                    Text="Activate" />
                             </StackPanel>
                         </Button>
+
+                        <Button
+                            Grid.Column="6"
+                            Height="80"
+                            Background="{StaticResource PGDarkBlue}"
+                            Command="{Binding RunBackupCommand}"
+                            Style="{StaticResource ModernBtn}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="16"
+                                    Text="💾" />
+                                <TextBlock
+                                    Margin="0,5,0,0"
+                                    FontWeight="Bold"
+                                    Text="Backup" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+                <TextBlock
+                    Margin="0,0,0,10"
+                    FontSize="18"
+                    FontWeight="Bold"
+                    Foreground="{StaticResource PGTextDark}"
+                    Text="Recovery Console" />
+
+                <Border Margin="0,0,0,30" Style="{StaticResource CardStyle}">
+                    <Grid Margin="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button
+                            Grid.Column="0"
+                            Height="70"
+                            Background="#E67E22"
+                            Command="{Binding RunSystemRestoreCommand}"
+                            Style="{StaticResource ModernBtn}">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock
+                                    Margin="0,0,15,0"
+                                    FontSize="24"
+                                    VerticalAlignment="Center"
+                                    Text="↺" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock
+                                        FontWeight="Bold"
+                                        FontSize="14"
+                                        Text="Open System Restore" />
+                                    <TextBlock
+                                        FontSize="11"
+                                        Opacity="0.9"
+                                        Text="Revert to earlier point" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button
+                            Grid.Column="2"
+                            Height="70"
+                            Background="#C0392B"
+                            Command="{Binding RunImageRecoveryCommand}"
+                            Style="{StaticResource ModernBtn}">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock
+                                    Margin="0,0,15,0"
+                                    FontSize="24"
+                                    VerticalAlignment="Center"
+                                    Text="💿" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock
+                                        FontWeight="Bold"
+                                        FontSize="14"
+                                        Text="Recover from Backup" />
+                                    <TextBlock
+                                        FontSize="11"
+                                        Opacity="0.9"
+                                        Text="Reboot to WinRE" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <TextBlock
+                    Margin="0,0,0,10"
+                    FontSize="18"
+                    FontWeight="Bold"
+                    Foreground="{StaticResource PGTextDark}"
+                    Text="Antivirus Protection" />
+                <Border Margin="0,0,0,30" Style="{StaticResource CardStyle}">
+                    <Grid Margin="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock
+                                Margin="0,0,0,5"
+                                FontSize="12"
+                                Foreground="{StaticResource PGTextLight}"
+                                Text="Select Antivirus Solution" />
+                            <ComboBox
+                                Height="45"
+                                Padding="10,0"
+                                VerticalContentAlignment="Center"
+                                Background="#F3F4F6"
+                                BorderBrush="#E5E7EB"
+                                FontSize="14"
+                                ItemsSource="{Binding AntivirusList}"
+                                SelectedItem="{Binding SelectedAntivirus}">
+                                <ComboBox.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="6" />
+                                    </Style>
+                                </ComboBox.Resources>
+                            </ComboBox>
+                        </StackPanel>
+                        <Button
+                            Grid.Column="2"
+                            Height="45"
+                            VerticalAlignment="Bottom"
+                            Background="{StaticResource PGDarkGreen}"
+                            Command="{Binding InstallAntivirusCommand}"
+                            Content="INSTALL AV"
+                            Style="{StaticResource ModernBtn}" />
                     </Grid>
                 </Border>
 
@@ -400,7 +532,6 @@
                             <ColumnDefinition Width="20" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock
                                 Margin="0,0,0,5"
@@ -423,7 +554,6 @@
                                 </ComboBox.Resources>
                             </ComboBox>
                         </StackPanel>
-
                         <Button
                             Grid.Column="2"
                             Height="45"
@@ -458,7 +588,6 @@
                             TextChanged="TextBox_TextChanged"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto" />
-
                         <Border
                             Background="#CC005C2B"
                             CornerRadius="8"

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 
 namespace PGInstaller.Viewmodel
 {
@@ -11,8 +12,11 @@ namespace PGInstaller.Viewmodel
         [NotifyCanExecuteChangedFor(nameof(RunDefenderCommand))]
         private bool _isDefenderPresent;
 
+
         private async Task CheckDefender()
         {
+
+
             Log("   [INIT] Checking Windows Defender runtime state...");
 
             var output = await RunProcessCaptureAsync("sc", "query WinDefend");
@@ -52,38 +56,52 @@ namespace PGInstaller.Viewmodel
         {
             if (IsBusy) return;
             IsBusy = true;
-            RunDefenderCommand.NotifyCanExecuteChanged(); 
+            RunDefenderCommand.NotifyCanExecuteChanged();
 
-            Log("------------------------------------------------");
-            Log("Attempting to Disable Windows Defender...");
+            var result = MessageBox.Show(
+                "WARNING: Disabling Windows Defender leaves the system vulnerable to threats.\n\n" +
+                "Are you sure you want to proceed?",
+                "Security Warning",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
 
-            try
+            if (result == MessageBoxResult.Yes)
             {
-                await PrepareAssets();
-
-                string scriptPath = Path.Combine(_assetsPath, "AchillesScript.cmd");
-
-                if (File.Exists(scriptPath))
-                {
-                    await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Achilles (Defender Disabler)");
-                    Log("   [SUCCESS] Script executed.");
-
-                    await CheckDefender();
-                }
-                else
-                {
-                    Log($"   [ERROR] Script not found at: {scriptPath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"   [ERROR] Operation Failed: {ex.Message}");
-            }
-            finally
-            {
-                IsBusy = false;
-                RunDefenderCommand.NotifyCanExecuteChanged();
                 Log("------------------------------------------------");
+                Log("Attempting to Disable Windows Defender...");
+
+                try
+                {
+                    await PrepareAssets();
+
+                    string scriptPath = Path.Combine(_assetsPath, "AchillesScript.cmd");
+
+                    if (File.Exists(scriptPath))
+                    {
+                        await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Achilles (Defender Disabler)");
+                        Log("   [SUCCESS] Script executed.");
+
+                        await CheckDefender();
+                    }
+                    else
+                    {
+                        Log($"   [ERROR] Script not found at: {scriptPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Operation Failed: {ex.Message}");
+                }
+                finally
+                {
+                    IsBusy = false;
+                    RunDefenderCommand.NotifyCanExecuteChanged();
+                    Log("------------------------------------------------");
+                }
+            }
+            else
+            {
+                Log("   [INFO] Defender action cancelled by user.");
             }
         }
     }
