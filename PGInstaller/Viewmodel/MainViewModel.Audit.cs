@@ -13,6 +13,7 @@ namespace PGInstaller.Viewmodel
         {
             await InstallCommonPackages();
             await InstallMMS();
+            await InstallPIMS();
         }
     }
 }

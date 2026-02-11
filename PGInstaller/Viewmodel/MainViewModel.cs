@@ -179,7 +179,7 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-        
+
 
         #region Package Implementations
 
@@ -215,66 +215,72 @@ namespace PGInstaller.Viewmodel
                 Log("   [SKIP] Adobe Acrobat is already installed.");
             }
 
+            await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
 
-            bool isWpsRegPresent = false;
-            try { using var key = Registry.CurrentUser.OpenSubKey(@"Software\Kingsoft"); if (key != null) isWpsRegPresent = true; } catch { }
-
-            if (!IsAppInstalled("WPS Office") && !isWpsRegPresent)
+            Log("   [PATCH] Stopping WPS processes to unlock files...");
+            await Task.Run(() =>
             {
-                await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
-
-                Log("   [PATCH] Stopping WPS processes to unlock files...");
-                await Task.Run(() =>
+                string[] wpsProcs = { "wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate" };
+                foreach (var procName in wpsProcs)
                 {
-                    string[] wpsProcs = { "wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate" };
-                    foreach (var procName in wpsProcs)
+                    try
                     {
-                        try
-                        {
-                            foreach (var p in Process.GetProcessesByName(procName)) p.Kill();
-                        }
-                        catch { }
+                        foreach (var p in Process.GetProcessesByName(procName)) p.Kill();
                     }
-                });
-                await Task.Delay(2000); 
-
-                string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
-                string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
-
-                if (!File.Exists(authDllSource))
-                {
-                    var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
-                    if (files.Length > 0) authDllSource = files[0];
+                    catch { }
                 }
+            });
+            await Task.Delay(2000);
+            string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
+            string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
 
-                if (File.Exists(authDllSource))
+            if (!File.Exists(authDllSource))
+            {
+                var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
+                if (files.Length > 0) authDllSource = files[0];
+            }
+
+            if (File.Exists(authDllSource))
+            {
+                string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                string kingsoftRoot = Path.Combine(progFiles, @"Kingsoft\WPS Office");
+
+                if (Directory.Exists(kingsoftRoot))
                 {
-                    string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    string kingsoftRoot = Path.Combine(appData, @"Kingsoft\WPS Office");
+                    var office6Dirs = Directory.GetDirectories(kingsoftRoot, "office6", SearchOption.AllDirectories);
 
-                    if (Directory.Exists(kingsoftRoot))
+                    if (office6Dirs.Length > 0)
                     {
-                        var office6Dirs = Directory.GetDirectories(kingsoftRoot, "office6", SearchOption.AllDirectories);
-                        if (office6Dirs.Length > 0)
+                        foreach (var dir in office6Dirs)
                         {
-                            string authDllDest = Path.Combine(office6Dirs[0], "auth.dll");
+                            string authDllDest = Path.Combine(dir, "auth.dll");
                             try
                             {
-                                File.Copy(authDllSource, authDllDest, true); 
-                                Log("   [SUCCESS] WPS auth.dll patched successfully.");
+                                File.Copy(authDllSource, authDllDest, true);
+                                Log($"   [SUCCESS] Patched: {authDllDest}");
                             }
-                            catch (Exception ex) { Log($"   [ERROR] Failed to patch WPS auth.dll: {ex.Message}"); }
+                            catch (Exception ex) { Log($"   [ERROR] Failed to patch {dir}: {ex.Message}"); }
                         }
                     }
+                    else
+                    {
+                        Log("   [WARN] 'office6' folder not found in Program Files Kingsoft directory.");
+                    }
+                }
+                else
+                {
+                    Log($"   [WARN] WPS Install directory not found at: {kingsoftRoot}");
+                    Log("           (Installer might have defaulted to AppData or failed)");
                 }
             }
             else
             {
-                Log("   [SKIP] WPS Office is already installed.");
+                Log("   [ERROR] auth.dll source not found in Assets/WPS.");
             }
 
             await ApplyRadminServer();
             await ApplyWallpaper();
+
             Log("   [CONFIG] Pinning Shortcuts to Taskbar...");
             await PinToTaskbar("Google Chrome", "chrome.exe");
             await PinToTaskbar("Mozilla Firefox", "firefox.exe");

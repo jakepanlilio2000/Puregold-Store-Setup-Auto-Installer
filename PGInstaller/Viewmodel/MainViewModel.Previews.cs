@@ -44,24 +44,32 @@ namespace PGInstaller.Viewmodel
                     break;
                 case "HRD":
                     PreviewList.Insert(0, ".NET Framework 3.5");
+                    PreviewList.Add("FSDM");
                     break;
                 case "ICD":
                     PreviewList.Add("PIMS");
                     PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("Wampserver 3.4.0");
+                    PreviewList.Add("Inventory Tools");
+                    PreviewList.Add("Variance");
                     break;
                 case "Payables":
                     PreviewList.Add("MMS (PCOMM)");
                     break;
                 case "Admin":
                     PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("PIMS");
                     break;
                 case "Audit":
                     PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("PIMS");
                     break;
                 case "Creative":
                     PreviewList.Add("Coreldraw Graphics");
                     PreviewList.Add("Coreldraw Technical Suite");
                     PreviewList.Add("Photoshop");
+                    PreviewList.Add("Illustrator");
+
                     break;
                 case "Receiving":
                     PreviewList.Add("MMS (PCOMM)");

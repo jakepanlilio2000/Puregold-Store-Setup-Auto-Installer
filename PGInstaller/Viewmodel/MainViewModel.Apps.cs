@@ -310,37 +310,103 @@ namespace PGInstaller.Viewmodel
             }
         }
 
+        private string GetNetFxSourceFolder()
+        {
+            try
+            {
+                var osVersion = Environment.OSVersion.Version;
+                string osLabel = (osVersion.Build >= 22000) ? "Win11" : "Win10";
+
+                string releaseId = "";
+                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    if (key != null)
+                    {
+                        releaseId = key.GetValue("DisplayVersion")?.ToString() ??
+                                    key.GetValue("ReleaseId")?.ToString() ??
+                                    "";
+                    }
+                }
+
+                if (string.IsNullOrEmpty(releaseId)) return null!;
+                return $"{osLabel} {releaseId.ToLower()}";
+            }
+            catch (Exception ex)
+            {
+                Log($"   [WARN] OS Detection error: {ex.Message}");
+                return null!;
+            }
+        }
         private async Task InstallNetFx3()
         {
-            bool success = await RunProcessAsync(
-                "dism",
-                "/online /enable-feature /featurename:NetFX3 /all /NoRestart",
-                "Enabling .NET Framework 3.5 (Online)"
-            );
+            Log("   [INIT] Starting Offline .NET 3.5 Installation...");
+            string netfxZip = Path.Combine(_assetsPath, "netfx.zip");
+            string netfxExtractDir = Path.Combine(GlobalTempRoot, "NetFX3_Source");
 
-            if (!success)
+            if (!File.Exists(netfxZip))
             {
-                Log("   [FALLBACK] Standard enable failed. Attempting offline install...");
+                Log("   [ERROR] netfx.zip not found in Assets.");
+                return;
+            }
 
-                string netfxCab = Path.Combine(_assetsPath, "netfx3.cab");
-
-                if (File.Exists(netfxCab))
+            if (!Directory.Exists(netfxExtractDir))
+            {
+                Log("   [EXTRACT] Unzipping NetFX3 sources...");
+                try
                 {
-                    await RunProcessAsync(
-                        "dism",
-                        $"/online /add-package /packagepath:\"{netfxCab}\" /NoRestart",
-                        "Installing .NET 3.5 (Offline CAB)"
-                    );
+                    Directory.CreateDirectory(netfxExtractDir);
+                    await Task.Run(() => ZipFile.ExtractToDirectory(netfxZip, netfxExtractDir));
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Extraction failed: {ex.Message}");
+                    return;
+                }
+            }
+            string matchedFolder = GetNetFxSourceFolder();
+
+            if (string.IsNullOrEmpty(matchedFolder))
+            {
+                Log("   [ERROR] Could not detect a compatible source folder for this OS.");
+                return;
+            }
+
+            string sourcePath = Path.Combine(netfxExtractDir, matchedFolder);
+            if (!Directory.Exists(sourcePath))
+            {
+                string osPrefix = matchedFolder.Split(' ')[0]; 
+                var fallbackDir = Directory.GetDirectories(netfxExtractDir, osPrefix + "*").FirstOrDefault();
+
+                if (fallbackDir != null)
+                {
+                    Log($"   [WARN] Exact version '{matchedFolder}' not found. Using fallback: {Path.GetFileName(fallbackDir)}");
+                    sourcePath = fallbackDir;
                 }
                 else
                 {
-                    Log($"   [ERROR] Fallback failed: netfx3.cab not found in {_assetsPath}");
+                    Log($"   [ERROR] Source directory not found: {matchedFolder}");
+                    return;
                 }
             }
+
+            Log($"   [INSTALL] Installing from source: {Path.GetFileName(sourcePath)}");
+
+            bool success = await RunProcessAsync(
+                "dism",
+                $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
+                "Enabling .NET 3.5 (Offline)"
+            );
+
+            if (success)
+                Log("   [SUCCESS] .NET Framework 3.5 installed.");
+            else
+                Log("   [ERROR] Installation failed. Check logs.");
         }
 
         private async Task InstallPIMS()
         {
+            await InstallNetFx3();
+
             string pimsZip = Path.Combine(_assetsPath, "pims.zip");
             string pimsRoot = Path.Combine(Path.GetTempPath(), "PG_PIMS_Install");
 
