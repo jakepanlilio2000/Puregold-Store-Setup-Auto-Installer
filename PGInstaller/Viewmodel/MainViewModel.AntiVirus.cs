@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 
@@ -29,6 +30,7 @@ namespace PGInstaller.Viewmodel
             {
                 string relativePath = Path.Combine("av", fileName);
                 string fullSourcePath = Path.Combine(_assetsPath, "av", fileName);
+
                 if (fileName.EndsWith(".zip"))
                 {
                     if (!File.Exists(fullSourcePath))
@@ -36,6 +38,7 @@ namespace PGInstaller.Viewmodel
                         Log($"   [ERROR] {fileName} not found in Assets/av folder.");
                         return;
                     }
+
                     string extractDir = Path.Combine(GlobalTempRoot, $"AV_Install_{DateTime.Now.Ticks}");
                     if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
                     Directory.CreateDirectory(extractDir);
@@ -46,16 +49,16 @@ namespace PGInstaller.Viewmodel
                         await Task.Run(() => ZipFile.ExtractToDirectory(fullSourcePath, extractDir));
                     }
                     catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
+
                     if (SelectedAntivirus.Contains("Sophos"))
                     {
-                        Log("   [INSTALL] Starting Sophos...");
-
+                        Log("   [INSTALL] Starting Sophos Sequence...");
                         var allFiles = Directory.GetFiles(extractDir, "*.*", SearchOption.TopDirectoryOnly);
                         int step = 1;
+
                         while (true)
                         {
                             string prefix = $"{step}-";
-
                             var stepFiles = allFiles
                                 .Where(f => Path.GetFileName(f).StartsWith(prefix) &&
                                            (f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)))
@@ -64,13 +67,11 @@ namespace PGInstaller.Viewmodel
 
                             if (stepFiles.Count == 0)
                             {
-                                
-                                if (step == 1) Log("   [WARN] No sophos found in Sophos zip.");
+                                if (step == 1) Log("   [WARN] No sequenced files (1-*.exe) found in Sophos zip.");
                                 break;
                             }
 
                             Log($"   [STEP {step}] Running {stepFiles.Count} file(s)...");
-
                             foreach (var file in stepFiles)
                             {
                                 string fname = Path.GetFileName(file);
@@ -79,20 +80,31 @@ namespace PGInstaller.Viewmodel
                                 else
                                     await RunProcessAsync(file, "/silent", $"Installing {fname}");
                             }
-
-                           
                             step++;
                         }
                     }
-                   
                     else if (SelectedAntivirus.Contains("Avast"))
                     {
                         Log("   [INSTALL] Starting Avast Silent Install...");
+
                         var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault();
 
                         if (cmdFile != null)
                         {
-                            await RunProcessAsync("cmd.exe", $"/c \"{cmdFile}\"", "Avast Setup", true);
+                            string scriptDir = Path.GetDirectoryName(cmdFile)!;
+
+                            var startInfo = new ProcessStartInfo
+                            {
+                                FileName = "cmd.exe",
+                                Arguments = $"/c \"{cmdFile}\"",
+                                WorkingDirectory = scriptDir, 
+                                UseShellExecute = false,
+                                CreateNoWindow = true,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true
+                            };
+
+                            await RunCustomProcess(startInfo, "Avast Setup");
                         }
                         else
                         {
@@ -102,7 +114,6 @@ namespace PGInstaller.Viewmodel
 
                     Log($"   [SUCCESS] {SelectedAntivirus} installation finished.");
                 }
-               
                 else
                 {
                     if (fileName.EndsWith(".msi"))

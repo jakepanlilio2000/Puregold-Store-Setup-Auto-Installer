@@ -65,20 +65,56 @@ namespace PGInstaller.Viewmodel
         [RelayCommand]
         private void RunSystemRestore()
         {
+            Log("   [LAUNCH] Opening System Restore...");
+
+            if (TryStart("rstrui.exe"))
+            {
+                Log("   [OK] System Restore Wizard opened.");
+                return;
+            }
+
+            if (TryStart("SystemPropertiesProtection.exe"))
+            {
+                Log("   [FALLBACK] Opened System Protection (click 'System Restore...').");
+                return;
+            }
+            if (TryStart("control.exe", "/name Microsoft.System"))
+            {
+                Log("   [FALLBACK] Opened Control Panel System (go to System Protection).");
+                return;
+            }
+            if (TryStart("ms-settings:recovery"))
+            {
+                Log("   [FALLBACK] Opened Settings > Recovery (use Advanced startup if needed).");
+                return;
+            }
+
+            Log("   [ERROR] Could not open System Restore via any known entry point.");
+        }
+
+        private bool TryStart(string fileName, string? args = null)
+        {
             try
             {
-                Log("   [LAUNCH] Opening System Restore Wizard...");
-                Process.Start(new ProcessStartInfo
+                var psi = new ProcessStartInfo
                 {
-                    FileName = "rstrui.exe",
+                    FileName = fileName,
                     UseShellExecute = true
-                });
+                };
+
+                if (!string.IsNullOrWhiteSpace(args))
+                    psi.Arguments = args;
+
+                Process.Start(psi);
+                return true;
             }
             catch (Exception ex)
             {
-                Log($"   [ERROR] Failed to launch System Restore: {ex.Message}");
+                Log($"   [WARN] Launch failed: {fileName} {(args ?? "")} -> {ex.Message}");
+                return false;
             }
         }
+
 
     }
 }

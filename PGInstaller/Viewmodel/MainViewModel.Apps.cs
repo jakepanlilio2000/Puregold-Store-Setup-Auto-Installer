@@ -951,7 +951,6 @@ namespace PGInstaller.Viewmodel
             Log("------------------------------------------------");
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
 
-            // 1. Get Inputs
             string dummyIp = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter DUMMY IP (Puregold Web/Fauxton):", "192.168.1.1"));
 
