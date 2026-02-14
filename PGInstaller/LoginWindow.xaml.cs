@@ -13,56 +13,65 @@ namespace PGInstaller
         public LoginWindow()
         {
             InitializeComponent();
-            TxtPassword.Focus();
+            Loaded += (_, _) => TxtPassword.Focus();
         }
 
-        private void BtnLogin_Click(object sender, RoutedEventArgs e)
-        {
-            ValidatePassword();
-        }
+        private void BtnLogin_Click(object sender, RoutedEventArgs e) => ValidatePassword();
 
-        private void BtnExit_Click(object sender, RoutedEventArgs e)
-        {
-            Application.Current.Shutdown();
-        }
+        private void BtnExit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
         private void TxtPassword_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
-            {
-                ValidatePassword();
-            }
+            if (e.Key == Key.Enter) ValidatePassword();
         }
 
         private void ValidatePassword()
         {
-            string inputHash = ComputeSha256Hash(TxtPassword.Password);
+            var raw = TxtPassword.Password ?? string.Empty;
 
-            if (inputHash == AccessHash)
+            if (string.IsNullOrWhiteSpace(raw))
             {
-                MainWindow main = new();
-                main.Show();
-                this.Close();
-            }
-            else
-            {
-                MessageBox.Show("Access Denied: Invalid Credentials", "Security Alert", MessageBoxButton.OK, MessageBoxImage.Error);
-                TxtPassword.Clear();
+                MessageBox.Show("Please enter the access key.", "Authentication", MessageBoxButton.OK, MessageBoxImage.Warning);
                 TxtPassword.Focus();
+                return;
             }
+
+            string inputHash = ComputeSha256Hex(raw);
+
+            if (FixedTimeEqualsHex(inputHash, AccessHash))
+            {
+                var main = new MainWindow();
+                Application.Current.MainWindow = main;
+                main.Show();
+
+                Close(); 
+                return;
+            }
+
+            MessageBox.Show("Access Denied: Invalid Credentials", "Security Alert",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+
+            TxtPassword.Clear();
+            TxtPassword.Focus();
         }
 
-        private static string ComputeSha256Hash(string rawData)
+        private static string ComputeSha256Hex(string rawData)
         {
-            using (SHA256 sha256Hash = SHA256.Create())
+            byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
+            return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+
+        private static bool FixedTimeEqualsHex(string a, string b)
+        {
+            try
             {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
+                var ba = Convert.FromHexString(a);
+                var bb = Convert.FromHexString(b);
+                return CryptographicOperations.FixedTimeEquals(ba, bb);
+            }
+            catch
+            {
+                return false;
             }
         }
     }
