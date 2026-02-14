@@ -12,7 +12,7 @@ namespace PGInstaller.Viewmodel
         private async Task InstallReceivingPackage()
         {
             await InstallCommonPackages();
-            await SmartInstall("Bartender", "bartender.exe", "/silent /S /I", "Bartender");
+            await InstallBartender();
             await InstallMMS();
             await InstallPIMS();
         }

@@ -1023,5 +1023,106 @@ namespace PGInstaller.Viewmodel
                 Log($"   [ERROR] CBM Execution Failed: {ex.Message}");
             }
         }
+
+        private async Task InstallBartender()
+        {
+            Log("   [INIT] Starting Bartender 11.8 Installation...");
+
+            string zipName = "bartender.zip";
+            string zipPath = Path.Combine(_assetsPath, zipName);
+            string extractDir = Path.Combine(GlobalTempRoot, "Bartender_Install");
+
+            if (!File.Exists(zipPath))
+            {
+                Log($"   [ERROR] {zipName} not found in Assets.");
+                return;
+            }
+
+            if (!Directory.Exists(extractDir))
+            {
+                Log("   [EXTRACT] Unzipping bartender.zip...");
+                try
+                {
+                    Directory.CreateDirectory(extractDir);
+                    await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractDir));
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Extraction failed: {ex.Message}");
+                    return;
+                }
+            }
+            string driverExe = Path.Combine(extractDir, "bartenderDR.exe");
+            if (File.Exists(driverExe))
+            {
+                await RunProcessAsync(driverExe, "/S", "Installing Bartender Driver");
+            }
+            else
+            {
+                Log("   [WARN] bartenderDR.exe not found.");
+            }
+            string uiExe = Path.Combine(extractDir, "bartenderUI.exe");
+            if (File.Exists(uiExe))
+            {
+                await RunProcessAsync(uiExe, "/S", "Installing Bartender UI");
+            }
+            else
+            {
+                Log("   [ERROR] bartenderUI.exe not found. Cannot proceed.");
+                return;
+            }
+            Log("   [PATCH] Applying Crack...");
+
+            string patchSrc = Path.Combine(extractDir, "patch", "BarTend.exe");
+
+            if (!File.Exists(patchSrc))
+            {
+                var allFiles = Directory.GetFiles(extractDir, "BarTend.exe", SearchOption.AllDirectories);
+                patchSrc = allFiles.FirstOrDefault(f => f.IndexOf("patch", StringComparison.OrdinalIgnoreCase) >= 0) ??
+                           allFiles.FirstOrDefault()!;
+            }
+
+            if (File.Exists(patchSrc))
+            {
+                await Task.Run(() =>
+                {
+                    try { foreach (var p in Process.GetProcessesByName("BarTend")) p.Kill(); } catch { }
+                    try { foreach (var p in Process.GetProcessesByName("BarTender")) p.Kill(); } catch { }
+                });
+                await Task.Delay(2000); 
+                string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+                string[] potentialDestinations = {
+                    Path.Combine(prog64, @"Seagull\BarTender 11.8\BarTend.exe"),
+                    Path.Combine(prog86, @"Seagull\BarTender 11.8\BarTend.exe"),
+                    Path.Combine(prog64, @"Seagull\BarTender Suite\BarTender\BarTend.exe"),
+                    Path.Combine(prog86, @"Seagull\BarTender Suite\BarTender\BarTend.exe")
+                };
+                string destPath = potentialDestinations.FirstOrDefault(File.Exists)!;
+
+                if (destPath != null)
+                {
+                    try
+                    {
+                        File.Copy(patchSrc, destPath, true); 
+                        Log($"   [SUCCESS] Patched: {destPath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Failed to overwrite file: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Log("   [WARN] Installation directory (Seagull/BarTender 11.8) not found.");
+                    Log("           Please manually copy the patch file.");
+                }
+            }
+            else
+            {
+                Log("   [ERROR] Patch file (BarTend.exe) not found in extracted zip.");
+            }
+        }
     }
 }

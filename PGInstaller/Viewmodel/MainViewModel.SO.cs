@@ -11,20 +11,28 @@ namespace PGInstaller.Viewmodel
         private async Task InstallStoreOperationsPackage(string role)
         {
             await InstallCommonPackages();
-            if (role == "Manager")
-                await SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom");
             await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
             await InstallMMS();
+
             await InstallPIMS();
-            if (role == "Customer Service")
-                await SmartInstall("Bartender", "bartender.exe", "/silent /S /I", "Bartender");
-            await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
-            if (role == "Selling")
-                await InstallMMS();
-            if (role == "HBC")
-                await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
-            await InstallMMS();
-            await InstallPIMS();
+            switch (role)
+            {
+                case "Manager":
+                    await SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom");
+                    break;
+
+                case "Customer Service":
+                    await InstallBartender();
+                    break;
+
+                case "Selling":
+                    break;
+
+                case "HBC":
+                    break;
+            }
+
+            Log($"   [SUCCESS] Store Operations ({role}) setup complete.");
         }
     }
 }

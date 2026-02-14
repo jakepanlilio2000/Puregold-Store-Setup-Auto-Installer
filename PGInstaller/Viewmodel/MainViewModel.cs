@@ -215,7 +215,7 @@ namespace PGInstaller.Viewmodel
                 Log("   [SKIP] Adobe Acrobat is already installed.");
             }
 
-            await InstallZipPackage("WPS.zip", "Setup.exe", "/silent /S /I", "WPS Office");
+            await InstallZipPackage("WPS.zip", "Setup.exe", "/S /D=\"C:\\Program Files\\WPS Office\"", "WPS Office");
 
             Log("   [PATCH] Stopping WPS processes to unlock files...");
             await Task.Run(() =>
@@ -231,6 +231,7 @@ namespace PGInstaller.Viewmodel
                 }
             });
             await Task.Delay(2000);
+
             string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
             string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
 
@@ -242,12 +243,11 @@ namespace PGInstaller.Viewmodel
 
             if (File.Exists(authDllSource))
             {
-                string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                string kingsoftRoot = Path.Combine(progFiles, @"Kingsoft\WPS Office");
+                string wpsTargetDir = @"C:\Program Files\WPS Office";
 
-                if (Directory.Exists(kingsoftRoot))
+                if (Directory.Exists(wpsTargetDir))
                 {
-                    var office6Dirs = Directory.GetDirectories(kingsoftRoot, "office6", SearchOption.AllDirectories);
+                    var office6Dirs = Directory.GetDirectories(wpsTargetDir, "office6", SearchOption.AllDirectories);
 
                     if (office6Dirs.Length > 0)
                     {
@@ -264,13 +264,13 @@ namespace PGInstaller.Viewmodel
                     }
                     else
                     {
-                        Log("   [WARN] 'office6' folder not found in Program Files Kingsoft directory.");
+                        Log($"   [WARN] 'office6' folder not found in {wpsTargetDir}");
                     }
                 }
                 else
                 {
-                    Log($"   [WARN] WPS Install directory not found at: {kingsoftRoot}");
-                    Log("           (Installer might have defaulted to AppData or failed)");
+                    Log($"   [WARN] WPS Install directory not found at: {wpsTargetDir}");
+                    Log("           (Installer might have failed or ignored the /D switch)");
                 }
             }
             else
@@ -285,8 +285,13 @@ namespace PGInstaller.Viewmodel
             await PinToTaskbar("Google Chrome", "chrome.exe");
             await PinToTaskbar("Mozilla Firefox", "firefox.exe");
             await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
-        }
 
+            Log("   [CONFIG] Setting Power Options (Sleep: Never)...");
+            await RunProcessAsync("powercfg", "/change standby-timeout-ac 0", "Disable Sleep (AC)");
+            await RunProcessAsync("powercfg", "/change standby-timeout-dc 0", "Disable Sleep (Battery)");
+            await RunProcessAsync("powercfg", "/change monitor-timeout-ac 0", "Disable Monitor Sleep (AC)");
+            await RunProcessAsync("powercfg", "/change monitor-timeout-dc 0", "Disable Monitor Sleep (Battery)");
+        }
         private async Task ApplyWallpaper()
         {
             string wallpaperName = "PG-wallpaper.jpeg";
