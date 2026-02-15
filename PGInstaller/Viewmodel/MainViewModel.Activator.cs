@@ -43,9 +43,9 @@ namespace PGInstaller.Viewmodel
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = destPath,
-                        UseShellExecute = true, 
-                        Verb = "runas",         
-                        WorkingDirectory = destDir 
+                        UseShellExecute = true,
+                        Verb = "runas",
+                        WorkingDirectory = destDir
                     });
 
                     Log("   [SUCCESS] Activator launched in new window.");
@@ -74,6 +74,7 @@ namespace PGInstaller.Viewmodel
             string? altName = null
         )
         {
+
             if (IsBusy) return;
             IsBusy = true;
             NotifyCommands();

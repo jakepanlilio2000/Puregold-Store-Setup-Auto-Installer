@@ -328,24 +328,17 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-        private async Task InstallZipPackage(
-            string zipName,
-            string installerName,
-            string args,
-            string description
-        )
+        private async Task InstallZipPackage(string zipName, string installerName, string args, string description)
         {
             string zipPath = Path.Combine(_assetsPath, zipName);
-            string extractPath = Path.Combine(
-                _assetsPath,
-                Path.GetFileNameWithoutExtension(zipName)
-            );
+            string extractRoot = @"C:\Assets";
+            string extractPath = Path.Combine(extractRoot, Path.GetFileNameWithoutExtension(zipName));
 
             if (File.Exists(zipPath))
             {
                 if (!Directory.Exists(extractPath))
                 {
-                    Log($"   [EXTRACT] Unzipping {zipName}...");
+                    Log($"   [EXTRACT] Unzipping {zipName} to C:\\Assets...");
                     try
                     {
                         Directory.CreateDirectory(extractPath);
@@ -364,6 +357,7 @@ namespace PGInstaller.Viewmodel
                     installerName,
                     SearchOption.AllDirectories
                 );
+
                 if (files.Length > 0)
                     setupPath = files[0];
 
@@ -390,7 +384,7 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log($"   [ERROR] {installerName} not found inside {zipName}");
+                    Log($"   [ERROR] {installerName} not found inside extracted folder.");
                 }
             }
             else

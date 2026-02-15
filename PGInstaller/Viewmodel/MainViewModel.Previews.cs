@@ -73,12 +73,12 @@ namespace PGInstaller.Viewmodel
                     break;
                 case "Receiving":
                     PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("Bartender");
                     break;
                 case "Treasury":
                     PreviewList.Add("Java Oracle");
                     break;
                 case "Store Operations (Manager)":
-                    PreviewList.Add("Microsoft Teams");
                     PreviewList.Add("VLC Media Player");
                     PreviewList.Add("PIMS");
                     PreviewList.Add("MMS (PCOMM)");
@@ -89,6 +89,7 @@ namespace PGInstaller.Viewmodel
                 case "Store Operations (Selling)":
                     PreviewList.Add("PIMS");
                     PreviewList.Add("MMS (PCOMM)");
+                    PreviewList.Add("Bartender");
                     break;
                 case "Store Operations (HBC)":
                     PreviewList.Add("PIMS");

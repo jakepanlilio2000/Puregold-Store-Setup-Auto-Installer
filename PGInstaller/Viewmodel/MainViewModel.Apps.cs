@@ -341,7 +341,7 @@ namespace PGInstaller.Viewmodel
         {
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
             string netfxZip = Path.Combine(_assetsPath, "netfx.zip");
-            string netfxExtractDir = Path.Combine(GlobalTempRoot, "NetFX3_Source");
+            string netfxExtractDir = @"C:\Assets\NetFX3_Source";
 
             if (!File.Exists(netfxZip))
             {
@@ -374,7 +374,7 @@ namespace PGInstaller.Viewmodel
             string sourcePath = Path.Combine(netfxExtractDir, matchedFolder);
             if (!Directory.Exists(sourcePath))
             {
-                string osPrefix = matchedFolder.Split(' ')[0]; 
+                string osPrefix = matchedFolder.Split(' ')[0];
                 var fallbackDir = Directory.GetDirectories(netfxExtractDir, osPrefix + "*").FirstOrDefault();
 
                 if (fallbackDir != null)
@@ -390,7 +390,6 @@ namespace PGInstaller.Viewmodel
             }
 
             Log($"   [INSTALL] Installing from source: {Path.GetFileName(sourcePath)}");
-
             bool success = await RunProcessAsync(
                 "dism",
                 $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
@@ -402,7 +401,6 @@ namespace PGInstaller.Viewmodel
             else
                 Log("   [ERROR] Installation failed. Check logs.");
         }
-
         private async Task InstallPIMS()
         {
             await InstallNetFx3();
@@ -429,9 +427,8 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
             }
-
-            string crDir = Path.Combine(pimsRoot, "CRDev8.5");
-            string crSetup = Path.Combine(crDir, "setup.exe");
+            string crDir = Path.Combine(pimsRoot, "CR10");
+            string crSetup = Path.Combine(crDir, "CR10_Autorun_ENPRO.exe");
 
             if (VerifyFile(crSetup))
             {
@@ -441,25 +438,30 @@ namespace PGInstaller.Viewmodel
                     Log("   [INFO] Launching Serial Number.txt...");
                     try
                     {
-                        Process.Start(
-                            new ProcessStartInfo { FileName = serialPath, UseShellExecute = true }
-                        );
+                        Process.Start(new ProcessStartInfo { FileName = serialPath, UseShellExecute = true });
                     }
-                    catch (Exception ex)
-                    {
-                        Log($"   [WARN] Could not open serial file: {ex.Message}");
-                    }
+                    catch (Exception ex) { Log($"   [WARN] Could not open serial file: {ex.Message}"); }
                 }
-                await RunProcessAsync(crSetup, "", "Installing Crystal Reports 8.5");
+                await RunProcessAsync(crSetup, "", "Installing Crystal Reports 8.5/10");
+            }
+            string crRedist86 = Path.Combine(pimsRoot, "CRRedist2005_x86.msi");
+            if (VerifyFile(crRedist86))
+            {
+                await RunProcessAsync("msiexec.exe", $"/i \"{crRedist86}\" /qn", "Installing CR Redist 2005 (x86)");
+            }
+
+            if (Environment.Is64BitOperatingSystem)
+            {
+                string crRedist64 = Path.Combine(pimsRoot, "CRRedist2005_X64.msi");
+                if (VerifyFile(crRedist64))
+                {
+                    await RunProcessAsync("msiexec.exe", $"/i \"{crRedist64}\" /qn", "Installing CR Redist 2005 (x64)");
+                }
             }
             string poMsi = Path.Combine(pimsRoot, "POTracking", "POTracking.msi");
             if (VerifyFile(poMsi))
             {
-                await RunProcessAsync(
-                    "msiexec.exe",
-                    $"/i \"{poMsi}\" /qn",
-                    "Installing POTracking"
-                );
+                await RunProcessAsync("msiexec.exe", $"/i \"{poMsi}\" /qn", "Installing POTracking");
             }
             string sqlDir = Path.Combine(pimsRoot, "SQLServer2005");
             string sqlMsi = Environment.Is64BitOperatingSystem
@@ -468,11 +470,7 @@ namespace PGInstaller.Viewmodel
 
             if (VerifyFile(sqlMsi))
             {
-                await RunProcessAsync(
-                    "msiexec.exe",
-                    $"/i \"{sqlMsi}\"",
-                    "Installing SQL Server 2005 BC"
-                );
+                await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\"", "Installing SQL Server 2005 BC");
             }
             string fmsSource = Path.Combine(pimsRoot, "FMS");
             string fmsDest = @"C:\FMS";
@@ -643,7 +641,6 @@ namespace PGInstaller.Viewmodel
                 await Task.Run(() => ZipFile.ExtractToDirectory(fsdmZip, tempFsdmRoot));
             }
             catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
-
             string ssce86 = Path.Combine(tempFsdmRoot, "SSCERuntime_x86-ENU.msi");
             string ssce64 = Path.Combine(tempFsdmRoot, "SSCERuntime_x64-ENU.msi");
 
@@ -652,40 +649,30 @@ namespace PGInstaller.Viewmodel
 
             if (File.Exists(ssce64))
                 await RunProcessAsync("msiexec.exe", $"/i \"{ssce64}\" /quiet", "Installing SSCE Runtime x64");
-
             string fsDevZip = Path.Combine(tempFsdmRoot, "FSDevMan.zip");
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string fsDestDir = Path.Combine(progFiles, "FSDevMan");
 
             if (File.Exists(fsDevZip))
             {
-                Log("   [EXTRACT] Installing FSDevMan...");
-                if (!Directory.Exists(fsDestDir))
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(fsDestDir);
-                        await Task.Run(() => ZipFile.ExtractToDirectory(fsDevZip, fsDestDir));
-                    }
-                    catch (Exception ex) { Log($"   [ERROR] FSDevMan extract failed: {ex.Message}"); }
-                }
+                Log("   [EXTRACT] Installing FSDevMan to Program Files...");
+                if (!Directory.Exists(fsDestDir)) Directory.CreateDirectory(fsDestDir);
 
+                try
+                {
+                    await Task.Run(() => ZipFile.ExtractToDirectory(fsDevZip, fsDestDir));
+                }
+                catch (Exception ex) { Log($"   [WARN] FSDevMan extract issue: {ex.Message}"); }
                 string exePath = Path.Combine(fsDestDir, "FSDeviceManager.exe");
+
                 if (File.Exists(exePath))
                 {
-                    await CreateDesktopShortcut("FS Device Manager", exePath);
-                    try
-                    {
-                        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers", true))
-                        {
-                            if (key != null)
-                            {
-                                key.SetValue(exePath, "~ RUNASADMIN");
-                                Log("   [CONFIG] Applied 'Run as Administrator' flag.");
-                            }
-                        }
-                    }
-                    catch (Exception ex) { Log($"   [WARN] Failed to set Admin flag: {ex.Message}"); }
+                    await CreateDesktopShortcut("FSDM", exePath);
+                    Log("   [SHORTCUT] Created Desktop Shortcut: FSDM");
+                }
+                else
+                {
+                    Log($"   [ERROR] FSDeviceManager.exe not found at {exePath}");
                 }
             }
 
@@ -704,7 +691,6 @@ namespace PGInstaller.Viewmodel
 
                     if (File.Exists(regBat))
                     {
-                        
                         var startInfo = new ProcessStartInfo
                         {
                             FileName = "cmd.exe",
@@ -740,7 +726,6 @@ namespace PGInstaller.Viewmodel
                 catch (Exception ex) { Log($"   [ERROR] Failed copy updater: {ex.Message}"); }
             }
         }
-
         private async Task InstallCorelPSIllu()
         {
             string corelExe = "crdx5.exe";
@@ -749,11 +734,30 @@ namespace PGInstaller.Viewmodel
             if (File.Exists(corelPath))
             {
                 await RunProcessAsync(corelPath, "", "Launching CorelDRAW X5 Installer");
+
+                string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                string installedPath = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
+
+                if (!File.Exists(installedPath))
+                {
+                    string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                    installedPath = Path.Combine(prog64, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
+                }
+
+                if (File.Exists(installedPath))
+                {
+                    await CreateDesktopShortcut("CorelDRAW X5", installedPath);
+                }
+                else
+                {
+                    Log("   [WARN] Could not locate CorelDRW.exe to create shortcut.");
+                }
             }
             else
             {
                 Log($"   [SKIP] Corel installer not found: {corelExe}");
             }
+
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string illuZip = Path.Combine(_assetsPath, "illucs6.zip");
             if (File.Exists(illuZip))
@@ -951,15 +955,10 @@ namespace PGInstaller.Viewmodel
             Log("------------------------------------------------");
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
 
-            string dummyIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter DUMMY IP (Puregold Web/Fauxton):", "192.168.1.1"));
+            string ownIp = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter OWN IP (for Local Conso):", "192.168.1.xxx"));
 
-            if (string.IsNullOrWhiteSpace(dummyIp)) { Log("   [SKIP] Dummy IP missing."); return; }
-
-            string couchIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter STORE COUCH IP (CouchDB):", "192.168.1.2"));
-
-            if (string.IsNullOrWhiteSpace(couchIp)) { Log("   [SKIP] Couch IP missing."); return; }
+            if (string.IsNullOrWhiteSpace(ownIp)) { Log("   [SKIP] IP missing."); return; }
 
             string scriptName = "cbm.ps1";
             string csvName = "port# & IP ZONE11.csv";
@@ -971,7 +970,6 @@ namespace PGInstaller.Viewmodel
                 Directory.CreateDirectory(tempDir);
 
                 string sourceCsv = Path.Combine(_assetsPath, csvName);
-
                 if (!File.Exists(sourceCsv))
                 {
                     var files = Directory.GetFiles(_assetsPath, "*.csv", SearchOption.AllDirectories);
@@ -988,6 +986,7 @@ namespace PGInstaller.Viewmodel
                     Log($"   [ERROR] CSV '{csvName}' not found. Script will fail.");
                     return;
                 }
+
                 string sourceScript = Path.Combine(_assetsPath, scriptName);
                 if (!File.Exists(sourceScript))
                 {
@@ -996,19 +995,17 @@ namespace PGInstaller.Viewmodel
                 }
 
                 string scriptContent = File.ReadAllText(sourceScript);
+                scriptContent = scriptContent.Replace("{{OWN_IP}}", ownIp);
 
-                scriptContent = scriptContent.Replace("{{DUMMY_IP}}", dummyIp);
-                scriptContent = scriptContent.Replace("{{COUCH_IP}}", couchIp);
                 string modifiedScriptPath = Path.Combine(tempDir, "cbm_modified.ps1");
                 File.WriteAllText(modifiedScriptPath, scriptContent);
-
                 Log("   [EXEC] Running CBM Script...");
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
                     Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{modifiedScriptPath}\"",
-                    WorkingDirectory = tempDir, 
+                    WorkingDirectory = tempDir,
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
