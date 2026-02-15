@@ -479,11 +479,22 @@ namespace PGInstaller.Viewmodel
             {
                 Log("   [COPY] Deploying FMS to C:\\FMS...");
                 await CopyDirectoryAsync(fmsSource, fmsDest);
+                string pimsExe = Path.Combine(fmsDest, "pims.exe");
+                if (File.Exists(pimsExe))
+                {
+                    await CreateDesktopShortcut("PIMS", pimsExe);
+                    Log("   [SHORTCUT] Created Desktop Shortcut: PIMS");
+                }
+                else
+                {
+                    Log("   [WARN] pims.exe not found in C:\\FMS after copy.");
+                }
             }
             else
             {
                 Log($"   [ERROR] Source FMS folder not found at {fmsSource}");
             }
+
             Log("   [CONFIG] Requesting IP Address...");
 
             string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() =>
