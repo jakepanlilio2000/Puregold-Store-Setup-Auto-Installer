@@ -1034,7 +1034,7 @@ namespace PGInstaller.Viewmodel
 
         private async Task InstallBartender()
         {
-            Log("   [INIT] Starting Bartender 11.8 Installation...");
+            Log("   [INIT] Starting Bartender Installation...");
 
             string zipName = "bartender.zip";
             string zipPath = Path.Combine(_assetsPath, zipName);
@@ -1060,76 +1060,45 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
             }
-            string driverExe = Path.Combine(extractDir, "bartenderDR.exe");
-            if (File.Exists(driverExe))
+
+            string setupExe = Path.Combine(extractDir, "bartender.exe");
+
+            if (File.Exists(setupExe))
             {
-                await RunProcessAsync(driverExe, "/S", "Installing Bartender Driver");
+                await RunProcessAsync(setupExe, "/S", "Installing Bartender Software");
             }
             else
             {
-                Log("   [WARN] bartenderDR.exe not found.");
-            }
-            string uiExe = Path.Combine(extractDir, "bartenderUI.exe");
-            if (File.Exists(uiExe))
-            {
-                await RunProcessAsync(uiExe, "/S", "Installing Bartender UI");
-            }
-            else
-            {
-                Log("   [ERROR] bartenderUI.exe not found. Cannot proceed.");
+                Log("   [ERROR] bartender.exe not found inside extracted folder.");
                 return;
             }
-            Log("   [PATCH] Applying Crack...");
 
-            string patchSrc = Path.Combine(extractDir, "patch", "BarTend.exe");
+            string btZip = Path.Combine(_assetsPath, "bt.zip");
+            string templatesDest = @"C:\Bartender Templates";
 
-            if (!File.Exists(patchSrc))
+            if (File.Exists(btZip))
             {
-                var allFiles = Directory.GetFiles(extractDir, "BarTend.exe", SearchOption.AllDirectories);
-                patchSrc = allFiles.FirstOrDefault(f => f.IndexOf("patch", StringComparison.OrdinalIgnoreCase) >= 0) ??
-                           allFiles.FirstOrDefault()!;
-            }
+                Log("   [DEPLOY] Setting up Bartender Templates...");
 
-            if (File.Exists(patchSrc))
-            {
-                await Task.Run(() =>
+                try
                 {
-                    try { foreach (var p in Process.GetProcessesByName("BarTend")) p.Kill(); } catch { }
-                    try { foreach (var p in Process.GetProcessesByName("BarTender")) p.Kill(); } catch { }
-                });
-                await Task.Delay(2000); 
-                string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                    
+                    if (Directory.Exists(templatesDest))
+                        Directory.Delete(templatesDest, true);
 
-                string[] potentialDestinations = {
-                    Path.Combine(prog64, @"Seagull\BarTender 11.8\BarTend.exe"),
-                    Path.Combine(prog86, @"Seagull\BarTender 11.8\BarTend.exe"),
-                    Path.Combine(prog64, @"Seagull\BarTender Suite\BarTender\BarTend.exe"),
-                    Path.Combine(prog86, @"Seagull\BarTender Suite\BarTender\BarTend.exe")
-                };
-                string destPath = potentialDestinations.FirstOrDefault(File.Exists)!;
+                    Directory.CreateDirectory(templatesDest);
 
-                if (destPath != null)
-                {
-                    try
-                    {
-                        File.Copy(patchSrc, destPath, true); 
-                        Log($"   [SUCCESS] Patched: {destPath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"   [ERROR] Failed to overwrite file: {ex.Message}");
-                    }
+                    await Task.Run(() => ZipFile.ExtractToDirectory(btZip, templatesDest));
+                    Log($"   [SUCCESS] Templates extracted to {templatesDest}");
                 }
-                else
+                catch (Exception ex)
                 {
-                    Log("   [WARN] Installation directory (Seagull/BarTender 11.8) not found.");
-                    Log("           Please manually copy the patch file.");
+                    Log($"   [ERROR] Failed to deploy templates: {ex.Message}");
                 }
             }
             else
             {
-                Log("   [ERROR] Patch file (BarTend.exe) not found in extracted zip.");
+                Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
         }
     }

@@ -17,6 +17,7 @@ namespace PGInstaller.Viewmodel
             { "Windows/Office Activator", "MAS_AIO.cmd" },
             { "CorelDRAW Keygen", "cx5.exe" },
             { "Adobe Patcher", "GenP.exe" },
+            { "Bartender Patcher", "bp.exe" },
         };
 
         public ObservableCollection<string> MedicineList => new ObservableCollection<string>(MedicineMap.Keys);
