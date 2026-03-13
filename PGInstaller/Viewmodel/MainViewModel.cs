@@ -77,6 +77,14 @@ namespace PGInstaller.Viewmodel
 
             try
             {
+                Log("   [CONFIG] Disabling Windows Firewall...");
+                await RunProcessAsync(
+                    "netsh",
+                    "advfirewall set allprofiles state off",
+                    "Disabling Windows Firewall (Domain, Private, Public)",
+                    true
+                );
+
                 bool assetsReady = await PrepareAssets();
 
                 if (!assetsReady)
@@ -195,8 +203,14 @@ namespace PGInstaller.Viewmodel
             await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
             await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
             await SmartInstall("Sticky Notes", "sticky.exe", "Setup_SimpleStickyNotes.exe /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Sticky Notes");
+            bool hasModernVc = IsAppInstalled("Visual C++ v14") ||
+                               IsAppInstalled("Visual C++ 2015") ||
+                               IsAppInstalled("Visual C++ 2015-2022") ||
+                               IsAppInstalled("Visual C++ 2015-2019");
 
-            if (!IsAppInstalled("Microsoft Visual C++ 2015-2022") || !IsAppInstalled("Microsoft Visual C++ 2013"))
+            bool has2013Vc = IsAppInstalled("Visual C++ 2013");
+
+            if (!hasModernVc || !has2013Vc)
             {
                 Log("   [INIT] Preparing VC++ Runtimes...");
                 await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");

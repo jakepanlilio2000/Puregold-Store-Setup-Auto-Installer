@@ -32,6 +32,21 @@
         <SolidColorBrush x:Key="PGTextDark" Color="#2C3E50" />
         <SolidColorBrush x:Key="PGTextLight" Color="#7F8C8D" />
 
+        <Style x:Key="TerminalStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                            <ScrollViewer x:Name="PART_ContentHost" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
         <Style x:Key="CardStyle" TargetType="Border">
             <Setter Property="Background" Value="White" />
             <Setter Property="CornerRadius" Value="8" />
@@ -108,6 +123,37 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="#00381a" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CaretBrush" Value="White" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border
+                            x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#002611" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="#86EFAC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
@@ -194,8 +240,7 @@
                                         Text="IP ADDRESS" />
                                     <TextBox
                                         Margin="0,2,0,0"
-                                        Background="#00381a"
-                                        Foreground="White"
+                                        Style="{StaticResource DarkTextBoxStyle}"
                                         Text="{Binding TargetIp}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
@@ -205,8 +250,7 @@
                                         Text="GATEWAY" />
                                     <TextBox
                                         Margin="0,2,0,0"
-                                        Background="#00381a"
-                                        Foreground="White"
+                                        Style="{StaticResource DarkTextBoxStyle}"
                                         Text="{Binding TargetGateway}" />
                                 </StackPanel>
                             </Grid>
@@ -216,8 +260,7 @@
                                 Text="PRIMARY DNS" />
                             <TextBox
                                 Margin="0,2,0,12"
-                                Background="#00381a"
-                                Foreground="White"
+                                Style="{StaticResource DarkTextBoxStyle}"
                                 Text="{Binding TargetDns}" />
                             <Button
                                 Height="32"
@@ -578,8 +621,7 @@
                     <Grid>
                         <TextBox
                             Margin="15"
-                            Background="Transparent"
-                            BorderThickness="0"
+                            Style="{StaticResource TerminalStyle}"
                             FontFamily="Consolas"
                             FontSize="13"
                             Foreground="#00FF00"

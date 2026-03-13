@@ -24,7 +24,8 @@ namespace PGInstaller.Viewmodel
                 "All VC++ Redistributables",
                 "WPS Office 2020",
                 "Revo Uninstaller Pro",
-                "Adobe Acrobat PRO DC"
+                "Adobe Acrobat PRO DC",
+                "Sticky Notes"
             };
 
             foreach (var app in commonApps)
@@ -40,11 +41,12 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("WinSCP (+ Config)");
                     PreviewList.Add("PIMS");
                     PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("Sticky Notes");
+                    
                     break;
                 case "HRD":
                     PreviewList.Insert(0, ".NET Framework 3.5");
                     PreviewList.Add("FSDM");
+                    PreviewList.Add("Wamp 1.7.2");
                     break;
                 case "ICD":
                     PreviewList.Add("PIMS");
@@ -65,15 +67,15 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("PIMS");
                     break;
                 case "Creative":
-                    PreviewList.Add("Coreldraw Graphics");
-                    PreviewList.Add("Coreldraw Technical Suite");
-                    PreviewList.Add("Photoshop");
-                    PreviewList.Add("Illustrator");
+                    PreviewList.Add("Coreldraw Graphics X5");
+                    PreviewList.Add("Photoshop CS6");
+                    PreviewList.Add("Illustrator CS6");
 
                     break;
                 case "Receiving":
                     PreviewList.Add("MMS (PCOMM)");
                     PreviewList.Add("Bartender");
+                    PreviewList.Add("Bartender Drivers");
                     break;
                 case "Treasury":
                     PreviewList.Add("Java Oracle");

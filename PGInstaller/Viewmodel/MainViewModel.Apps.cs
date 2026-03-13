@@ -12,13 +12,13 @@ namespace PGInstaller.Viewmodel
         {
             if (!IsAppInstalled("IBM Personal Communications"))
             {
-                await InstallZipPackage(
-                    "MMS.zip",
-                    "setup.exe",
-                    "",
-                    "MMS (IBM Personal Communications)"
-                );
 
+                await InstallZipPackage(
+                    "mms2.zip",
+                    "cwblaunch.exe",
+                    "",
+                    "iSeries Access"
+                );
                 string mmsFileName = "MMS.ws";
                 string mmsSource = Path.Combine(_assetsPath, mmsFileName);
                 string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
@@ -47,6 +47,7 @@ namespace PGInstaller.Viewmodel
                 {
                     Log($"   [WARN] {mmsFileName} not found in Assets root.");
                 }
+
                 string kmpFileName = "AS400.KMP";
                 string kmpSource = Path.Combine(_assetsPath, kmpFileName);
                 string kmpDest = @"C:\AS400.KMP";
@@ -277,7 +278,6 @@ namespace PGInstaller.Viewmodel
                         {
                             FileName = wampExe,
                             UseShellExecute = true,
-                            Verb = "runas"
                         });
                     }
                 }
@@ -406,7 +406,8 @@ namespace PGInstaller.Viewmodel
             await InstallNetFx3();
 
             string pimsZip = Path.Combine(_assetsPath, "pims.zip");
-            string pimsRoot = Path.Combine(Path.GetTempPath(), "PG_PIMS_Install");
+
+            string pimsRoot = @"C:\Assets\PG_PIMS_Install";
 
             if (!File.Exists(pimsZip))
             {
@@ -498,7 +499,7 @@ namespace PGInstaller.Viewmodel
             Log("   [CONFIG] Requesting IP Address...");
 
             string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Server IP Address config for FIDB and FIHO:", "192.92.1.100")
+                ShowInputDialog("Enter Server IP Address config for FIDB and FIHO (PIMS SETUP):", "192.92.1.100")
             );
 
             if (!string.IsNullOrWhiteSpace(ipAddress))
@@ -634,7 +635,7 @@ namespace PGInstaller.Viewmodel
         private async Task InstallFSDM()
         {
             string fsdmZip = Path.Combine(_assetsPath, "FSDM.zip");
-            string tempFsdmRoot = Path.Combine(Path.GetTempPath(), "PG_FSDM_Install");
+            string tempFsdmRoot = @"C:\Assets\PG_FSDM_Install";
 
             if (Directory.Exists(tempFsdmRoot))
                 try { Directory.Delete(tempFsdmRoot, true); } catch { }
@@ -739,6 +740,7 @@ namespace PGInstaller.Viewmodel
         }
         private async Task InstallCorelPSIllu()
         {
+            await InstallNetFx3();
             string corelExe = "crdx5.exe";
             string corelPath = Path.Combine(_assetsPath, corelExe);
 
@@ -973,7 +975,7 @@ namespace PGInstaller.Viewmodel
 
             string scriptName = "cbm.ps1";
             string csvName = "port# & IP ZONE11.csv";
-            string tempDir = Path.Combine(Path.GetTempPath(), "PG_CBM_Exec");
+            string tempDir = @"C:\Assets\PG_CBM_Exec";
 
             try
             {
@@ -1038,7 +1040,7 @@ namespace PGInstaller.Viewmodel
 
             string zipName = "bartender.zip";
             string zipPath = Path.Combine(_assetsPath, zipName);
-            string extractDir = Path.Combine(GlobalTempRoot, "Bartender_Install");
+            string extractDir = @"C:\Assets\Bartender_Install";
 
             if (!File.Exists(zipPath))
             {
@@ -1082,7 +1084,6 @@ namespace PGInstaller.Viewmodel
 
                 try
                 {
-                    
                     if (Directory.Exists(templatesDest))
                         Directory.Delete(templatesDest, true);
 

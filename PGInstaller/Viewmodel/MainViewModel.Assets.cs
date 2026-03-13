@@ -48,13 +48,26 @@ namespace PGInstaller.Viewmodel
 
         public void CleanupSession()
         {
-            if (Directory.Exists(GlobalTempRoot))
+            string[] cleanupDirs = {
+                @"C:\PG_Activator",
+                @"C:\Assets\AV_Install",
+                @"C:\Assets\Bartender_Install",
+                @"C:\Assets\PG_CBM_Exec",
+                @"C:\Assets\PG_FSDM_Install",
+                @"C:\Assets\PG_PIMS_Install",
+                @"C:\Assets\NetFX3_Source"
+            };
+
+            foreach (var dir in cleanupDirs)
             {
-                try
+                if (Directory.Exists(dir))
                 {
-                    Directory.Delete(GlobalTempRoot, true);
+                    try
+                    {
+                        Directory.Delete(dir, true);
+                    }
+                    catch { }
                 }
-                catch { }
             }
         }
 

@@ -15,7 +15,7 @@ namespace PGInstaller.Viewmodel
         public Dictionary<string, string> AntivirusMap { get; } = new Dictionary<string, string>
         {
             { "Malwarebytes AdwCleaner", "adwcleaner.exe" },
-            { "Sophos", "sophos.zip" },         
+            { "Symantec Endpoint Protection (Windows Server)", "symantec.zip" },
             { "Avast Premium", "avast.zip" }
         };
 
@@ -38,9 +38,11 @@ namespace PGInstaller.Viewmodel
                         Log($"   [ERROR] {fileName} not found in Assets/av folder.");
                         return;
                     }
+                    string extractDir = @"C:\Assets\AV_Install";
 
-                    string extractDir = Path.Combine(GlobalTempRoot, $"AV_Install_{DateTime.Now.Ticks}");
-                    if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
+                    if (Directory.Exists(extractDir))
+                        try { Directory.Delete(extractDir, true); } catch { }
+
                     Directory.CreateDirectory(extractDir);
 
                     Log($"   [EXTRACT] Unzipping {fileName}...");
@@ -50,40 +52,7 @@ namespace PGInstaller.Viewmodel
                     }
                     catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
 
-                    if (SelectedAntivirus.Contains("Sophos"))
-                    {
-                        Log("   [INSTALL] Starting Sophos Sequence...");
-                        var allFiles = Directory.GetFiles(extractDir, "*.*", SearchOption.TopDirectoryOnly);
-                        int step = 1;
-
-                        while (true)
-                        {
-                            string prefix = $"{step}-";
-                            var stepFiles = allFiles
-                                .Where(f => Path.GetFileName(f).StartsWith(prefix) &&
-                                           (f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)))
-                                .OrderBy(f => f)
-                                .ToList();
-
-                            if (stepFiles.Count == 0)
-                            {
-                                if (step == 1) Log("   [WARN] No sequenced files (1-*.exe) found in Sophos zip.");
-                                break;
-                            }
-
-                            Log($"   [STEP {step}] Running {stepFiles.Count} file(s)...");
-                            foreach (var file in stepFiles)
-                            {
-                                string fname = Path.GetFileName(file);
-                                if (fname.EndsWith(".msi"))
-                                    await RunProcessAsync("msiexec.exe", $"/i \"{file}\" /qn /norestart", $"Installing {fname}");
-                                else
-                                    await RunProcessAsync(file, "/silent", $"Installing {fname}");
-                            }
-                            step++;
-                        }
-                    }
-                    else if (SelectedAntivirus.Contains("Avast"))
+                    if (SelectedAntivirus.Contains("Avast"))
                     {
                         Log("   [INSTALL] Starting Avast Silent Install...");
 
@@ -97,7 +66,7 @@ namespace PGInstaller.Viewmodel
                             {
                                 FileName = "cmd.exe",
                                 Arguments = $"/c \"{cmdFile}\"",
-                                WorkingDirectory = scriptDir, 
+                                WorkingDirectory = scriptDir,
                                 UseShellExecute = false,
                                 CreateNoWindow = true,
                                 RedirectStandardOutput = true,
@@ -111,8 +80,32 @@ namespace PGInstaller.Viewmodel
                             Log("   [ERROR] 'Silent Installing.cmd' not found.");
                         }
                     }
+                    else if (SelectedAntivirus.Contains("Symantec"))
+                    {
+                        Log("   [INSTALL] Starting Symantec Endpoint Protection Silent Install...");
+                        var setupExe = Directory.GetFiles(extractDir, "Setup.exe", SearchOption.AllDirectories).FirstOrDefault();
 
-                    Log($"   [SUCCESS] {SelectedAntivirus} installation finished.");
+                        if (setupExe != null)
+                        {
+                            string args = "/s /v\"/qn /norestart\"";
+                            await RunProcessAsync(setupExe, args, "Symantec Endpoint Protection");
+                        }
+                        else
+                        {
+                            var msiExe = Directory.GetFiles(extractDir, "Sep64.msi", SearchOption.AllDirectories).FirstOrDefault();
+                            if (msiExe != null)
+                            {
+                                Log("   [WARN] Setup.exe not found, falling back to Sep64.msi...");
+                                await RunProcessAsync("msiexec.exe", $"/i \"{msiExe}\" /qn /norestart", "Symantec Endpoint Protection (MSI)");
+                            }
+                            else
+                            {
+                                Log("   [ERROR] Setup.exe or Sep64.msi not found in Symantec zip.");
+                            }
+                        }
+                    }
+
+                    Log($"   [SUCCESS] {SelectedAntivirus} installation sequence finished.");
                 }
                 else
                 {
