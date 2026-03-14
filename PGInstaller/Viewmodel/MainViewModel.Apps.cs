@@ -146,6 +146,13 @@ namespace PGInstaller.Viewmodel
 
         private async Task PinToTaskbar(string appName, string exeName)
         {
+            string syspinPath = Path.Combine(_assetsPath, "syspin.exe");
+            if (!File.Exists(syspinPath))
+            {
+                Log($"   [WARN] Cannot pin {appName} - 'syspin.exe' is missing from Assets.");
+                return;
+            }
+
             string[] searchPaths = {
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
                 Environment.GetFolderPath(Environment.SpecialFolder.Programs),
@@ -154,41 +161,40 @@ namespace PGInstaller.Viewmodel
                 @"C:\Program Files\Mozilla Thunderbird"
             };
 
-            string? shortcutPath = null;
+            string? targetPath = null;
 
             foreach (var dir in searchPaths)
             {
                 if (Directory.Exists(dir))
                 {
-                    var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
-                        .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
-
-                    var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
-                                                          Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
-                    if (match != null)
+                    try
                     {
-                        shortcutPath = match;
-                        break;
+                        var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
+                            .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
+
+                        var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
+                                                              Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                        {
+                            targetPath = match;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                      
                     }
                 }
             }
 
-            if (shortcutPath != null)
+            if (targetPath != null)
             {
-                try
-                {
-                    string script = $@"
-                    $path = '{shortcutPath}'
-                    $shell = New-Object -ComObject Shell.Application
-                    $folder = $shell.NameSpace((Get-Item $path).DirectoryName)
-                    $item = $folder.ParseName((Get-Item $path).Name)
-                    $verb = $item.Verbs() | Where-Object {{ $_.Name -like '*taskbar*' }}
-                    if ($verb) {{ $verb.DoIt() }}
-                    ";
-
-                    await RunProcessAsync("powershell.exe", $"-Command \"{script}\"", $"Pinning {appName}", true);
-                }
-                catch {  }
+                Log($"   [CONFIG] Pinning {appName} to Taskbar...");
+                await RunProcessAsync(syspinPath, $"\"{targetPath}\" c:5386", $"Pinning {appName}", true);
+            }
+            else
+            {
+                Log($"   [WARN] Could not find {appName} ({exeName}) to pin.");
             }
         }
 
@@ -315,21 +321,43 @@ namespace PGInstaller.Viewmodel
             try
             {
                 var osVersion = Environment.OSVersion.Version;
-                string osLabel = (osVersion.Build >= 22000) ? "Win11" : "Win10";
+                int build = osVersion.Build;
 
-                string releaseId = "";
-                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+                string productName = key?.GetValue("ProductName")?.ToString() ?? "";
+
+                bool isServer = productName.Contains("Server");
+
+                if (isServer)
                 {
-                    if (key != null)
-                    {
-                        releaseId = key.GetValue("DisplayVersion")?.ToString() ??
-                                    key.GetValue("ReleaseId")?.ToString() ??
-                                    "";
-                    }
+                    if (build >= 26100)
+                        return "Win11 24h2";     
+
+                    if (build >= 20348)
+                        return "Win10 21h2";     
+
+                    if (build >= 17763)
+                        return "Win10 1809";     
+
+                    if (build >= 14393)
+                        return "Win10 1607";     
+                }
+                else
+                {
+                    string releaseId =
+                        key?.GetValue("DisplayVersion")?.ToString() ??
+                        key?.GetValue("ReleaseId")?.ToString() ??
+                        "";
+
+                    if (string.IsNullOrEmpty(releaseId))
+                        return null!;
+
+                    string osLabel = (build >= 22000) ? "Win11" : "Win10";
+
+                    return $"{osLabel} {releaseId.ToLower()}";
                 }
 
-                if (string.IsNullOrEmpty(releaseId)) return null!;
-                return $"{osLabel} {releaseId.ToLower()}";
+                return null!;
             }
             catch (Exception ex)
             {
@@ -337,6 +365,7 @@ namespace PGInstaller.Viewmodel
                 return null!;
             }
         }
+
         private async Task InstallNetFx3()
         {
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
@@ -653,6 +682,7 @@ namespace PGInstaller.Viewmodel
                 await Task.Run(() => ZipFile.ExtractToDirectory(fsdmZip, tempFsdmRoot));
             }
             catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
+
             string ssce86 = Path.Combine(tempFsdmRoot, "SSCERuntime_x86-ENU.msi");
             string ssce64 = Path.Combine(tempFsdmRoot, "SSCERuntime_x64-ENU.msi");
 
@@ -661,6 +691,7 @@ namespace PGInstaller.Viewmodel
 
             if (File.Exists(ssce64))
                 await RunProcessAsync("msiexec.exe", $"/i \"{ssce64}\" /quiet", "Installing SSCE Runtime x64");
+
             string fsDevZip = Path.Combine(tempFsdmRoot, "FSDevMan.zip");
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string fsDestDir = Path.Combine(progFiles, "FSDevMan");
@@ -675,12 +706,28 @@ namespace PGInstaller.Viewmodel
                     await Task.Run(() => ZipFile.ExtractToDirectory(fsDevZip, fsDestDir));
                 }
                 catch (Exception ex) { Log($"   [WARN] FSDevMan extract issue: {ex.Message}"); }
+
                 string exePath = Path.Combine(fsDestDir, "FSDeviceManager.exe");
 
                 if (File.Exists(exePath))
                 {
                     await CreateDesktopShortcut("FSDM", exePath);
                     Log("   [SHORTCUT] Created Desktop Shortcut: FSDM");
+                    try
+                    {
+                        using (var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue(exePath, "~ RUNASADMIN");
+                                Log("   [CONFIG] Applied 'Run as Administrator' flag to FSDeviceManager.");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"   [WARN] Failed to set Admin flag (Requires Admin rights to write to HKLM): {ex.Message}");
+                    }
                 }
                 else
                 {
@@ -723,6 +770,7 @@ namespace PGInstaller.Viewmodel
                 }
                 catch (Exception ex) { Log($"   [ERROR] SDK Installation failed: {ex.Message}"); }
             }
+
             string dbUpdater = "FSDM Database Updater.exe";
             string dbSource = Path.Combine(tempFsdmRoot, dbUpdater);
 
