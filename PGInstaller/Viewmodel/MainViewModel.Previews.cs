@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace PGInstaller.Viewmodel
+﻿namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
@@ -13,6 +7,7 @@ namespace PGInstaller.Viewmodel
             PreviewList.Clear();
             if (string.IsNullOrEmpty(value))
                 return;
+
             var commonApps = new List<string>
             {
                 "Google Chrome",
@@ -41,7 +36,6 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("WinSCP (+ Config)");
                     PreviewList.Add("PIMS");
                     PreviewList.Add("MMS (PCOMM)");
-                    
                     break;
                 case "HRD":
                     PreviewList.Insert(0, ".NET Framework 3.5");
@@ -70,7 +64,6 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("Coreldraw Graphics X5");
                     PreviewList.Add("Photoshop CS6");
                     PreviewList.Add("Illustrator CS6");
-
                     break;
                 case "Receiving":
                     PreviewList.Add("MMS (PCOMM)");
@@ -98,7 +91,6 @@ namespace PGInstaller.Viewmodel
                     PreviewList.Add("MMS (PCOMM)");
                     break;
                 default:
-
                     break;
             }
         }

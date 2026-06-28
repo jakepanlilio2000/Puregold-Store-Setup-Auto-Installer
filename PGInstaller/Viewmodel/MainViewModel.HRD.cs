@@ -1,4 +1,4 @@
-﻿using System.IO;
+﻿using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
@@ -7,7 +7,7 @@ namespace PGInstaller.Viewmodel
         private async Task InstallHRDPackage()
         {
             await InstallCommonPackages();
-            await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "VLC");
+            await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "WampServer");
             await InstallPIMS();
             await InstallFSDM();
         }

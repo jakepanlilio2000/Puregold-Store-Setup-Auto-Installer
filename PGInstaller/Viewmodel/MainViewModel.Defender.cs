@@ -12,18 +12,15 @@ namespace PGInstaller.Viewmodel
         [NotifyCanExecuteChangedFor(nameof(RunDefenderCommand))]
         private bool _isDefenderPresent;
 
-
         private async Task CheckDefender()
         {
-
-
             Log("   [INIT] Checking Windows Defender runtime state...");
 
             var output = await RunProcessCaptureAsync("sc", "query WinDefend");
 
             bool running =
-                output.IndexOf("STATE", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                output.IndexOf("RUNNING", StringComparison.OrdinalIgnoreCase) >= 0;
+                output.Contains("STATE", StringComparison.OrdinalIgnoreCase) &&
+                output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
 
             IsDefenderPresent = running;
 
@@ -40,14 +37,19 @@ namespace PGInstaller.Viewmodel
                 FileName = file,
                 Arguments = args,
                 RedirectStandardOutput = true,
+                RedirectStandardError = true, 
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
 
             using var p = Process.Start(psi);
-            return await p!.StandardOutput.ReadToEndAsync();
-        }
+            if (p == null) return string.Empty;
 
+            string output = await p.StandardOutput.ReadToEndAsync();
+            p.WaitForExit(); 
+
+            return output;
+        }
 
         private bool CanRunDefender() => IsDefenderPresent && !IsBusy;
 
@@ -74,7 +76,7 @@ namespace PGInstaller.Viewmodel
                 {
                     await PrepareAssets();
 
-                    string scriptPath = Path.Combine(_assetsPath, "AchillesScript.cmd");
+                    string scriptPath = Path.Combine(_assetsPath!, "AchillesScript.cmd");
 
                     if (File.Exists(scriptPath))
                     {

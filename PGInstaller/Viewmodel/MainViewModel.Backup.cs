@@ -11,13 +11,15 @@ namespace PGInstaller.Viewmodel
         private async Task RunBackup()
         {
             string inputPath = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Backup Drive (e.g. D:) or Network Share:", @"D:"));
+                ShowInputDialog("Enter Backup Drive (e.g. D:) or Network Share:", @"D:")
+            );
 
             if (string.IsNullOrWhiteSpace(inputPath))
             {
                 Log("   [INFO] Backup cancelled.");
                 return;
             }
+
             string finalTarget = inputPath;
             if (Path.IsPathRooted(inputPath) && !inputPath.StartsWith(@"\\"))
             {
@@ -41,9 +43,8 @@ namespace PGInstaller.Viewmodel
                 string script = $@"
 $Target = '{finalTarget}'
 Write-Host ""Targeting: $Target""
-
 # Check if target exists
-if ((Test-Path $Target) -or ($Target -match '^\\\\')) {{
+if ((Test-Path $Target) -or ($Target -match '^\\')) {{
     wbadmin start backup -backupTarget:$Target -include:C: -allCritical -quiet
     if (!$?) {{ Write-Error 'Backup process returned an error code.' }}
 }}
@@ -76,7 +77,7 @@ else {{
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = "shutdown.exe",
-                        Arguments = "/r /o /f /t 00", 
+                        Arguments = "/r /o /f /t 00",
                         UseShellExecute = false,
                         CreateNoWindow = true
                     });

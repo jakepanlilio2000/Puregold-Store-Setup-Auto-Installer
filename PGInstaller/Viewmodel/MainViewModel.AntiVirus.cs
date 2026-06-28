@@ -29,7 +29,7 @@ namespace PGInstaller.Viewmodel
             if (AntivirusMap.TryGetValue(SelectedAntivirus, out string? fileName))
             {
                 string relativePath = Path.Combine("av", fileName);
-                string fullSourcePath = Path.Combine(_assetsPath, "av", fileName);
+                string fullSourcePath = Path.Combine(_assetsPath!, "av", fileName);
 
                 if (fileName.EndsWith(".zip"))
                 {
@@ -60,7 +60,7 @@ namespace PGInstaller.Viewmodel
 
                         if (cmdFile != null)
                         {
-                            string scriptDir = Path.GetDirectoryName(cmdFile)!;
+                            string? scriptDir = Path.GetDirectoryName(cmdFile);
 
                             var startInfo = new ProcessStartInfo
                             {

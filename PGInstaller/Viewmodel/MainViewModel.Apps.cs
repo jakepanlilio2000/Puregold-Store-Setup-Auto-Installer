@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace PGInstaller.Viewmodel
 {
@@ -12,15 +13,15 @@ namespace PGInstaller.Viewmodel
         {
             if (!IsAppInstalled("IBM Personal Communications"))
             {
-
                 await InstallZipPackage(
-                    "mms2.zip",
-                    "cwblaunch.exe",
-                    "",
-                    "iSeries Access"
+                     "mms2.zip",
+                     "cwblaunch.exe",
+                     "",
+                     "iSeries Access"
                 );
+
                 string mmsFileName = "MMS.ws";
-                string mmsSource = Path.Combine(_assetsPath, mmsFileName);
+                string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
                 string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 string mmsDest = Path.Combine(desktopPath, mmsFileName);
 
@@ -49,7 +50,7 @@ namespace PGInstaller.Viewmodel
                 }
 
                 string kmpFileName = "AS400.KMP";
-                string kmpSource = Path.Combine(_assetsPath, kmpFileName);
+                string kmpSource = Path.Combine(_assetsPath!, kmpFileName);
                 string kmpDest = @"C:\AS400.KMP";
 
                 if (File.Exists(kmpSource))
@@ -74,21 +75,22 @@ namespace PGInstaller.Viewmodel
                 Log("   [SKIP] MMS (IBM Personal Communications) is already installed.");
             }
         }
+
         private async Task ApplyRadminServer()
         {
-            string installBatPath = Path.Combine(_assetsPath, "install.bat");
+            string installBatPath = Path.Combine(_assetsPath!, "install.bat");
             if (File.Exists(installBatPath))
             {
                 if (
-                    File.Exists(Path.Combine(_assetsPath, "newtstop.dll"))
-                    && File.Exists(Path.Combine(_assetsPath, "nts64helper.dll"))
+                    File.Exists(Path.Combine(_assetsPath!, "newtstop.dll"))
+                    && File.Exists(Path.Combine(_assetsPath!, "nts64helper.dll"))
                 )
                 {
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
                         Arguments = $"/c \"{installBatPath}\"",
-                        WorkingDirectory = _assetsPath,
+                        WorkingDirectory = _assetsPath!,
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardOutput = true,
@@ -98,9 +100,7 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log(
-                        "   [ERROR] Dependencies for install.bat (newtstop.dll or nts64helper.dll) missing."
-                    );
+                    Log("   [ERROR] Dependencies for install.bat (newtstop.dll or nts64helper.dll) missing.");
                 }
             }
             else
@@ -112,7 +112,7 @@ namespace PGInstaller.Viewmodel
         private async Task InstallInventoryTools()
         {
             string zipName = "inventorytools.zip";
-            string zipPath = Path.Combine(_assetsPath, zipName);
+            string zipPath = Path.Combine(_assetsPath!, zipName);
             string targetDir = @"C:\wamp64\www\puregold";
 
             if (File.Exists(zipPath))
@@ -146,22 +146,22 @@ namespace PGInstaller.Viewmodel
 
         private async Task PinToTaskbar(string appName, string exeName)
         {
-            string syspinPath = Path.Combine(_assetsPath, "syspin.exe");
+            string syspinPath = Path.Combine(_assetsPath!, "syspin.exe");
             if (!File.Exists(syspinPath))
             {
                 Log($"   [WARN] Cannot pin {appName} - 'syspin.exe' is missing from Assets.");
                 return;
             }
 
-            string[] searchPaths = {
+            string[] searchPaths = [
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
                 Environment.GetFolderPath(Environment.SpecialFolder.Programs),
                 @"C:\Program Files\Google\Chrome\Application",
                 @"C:\Program Files\Mozilla Firefox",
                 @"C:\Program Files\Mozilla Thunderbird"
-            };
+            ];
 
-            string? targetPath = null;
+            string targetPath = null!;
 
             foreach (var dir in searchPaths)
             {
@@ -182,7 +182,7 @@ namespace PGInstaller.Viewmodel
                     }
                     catch
                     {
-                      
+                        // Ignore access denied or other directory errors
                     }
                 }
             }
@@ -217,10 +217,12 @@ namespace PGInstaller.Viewmodel
             {
                 try
                 {
+
                     string apacheRoot = Path.Combine(wampBase, @"bin\apache");
                     string? apacheVerDir = Directory.Exists(apacheRoot)
-                        ? Directory.GetDirectories(apacheRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("apache"))
-                        : null;
+                    ? Directory.GetDirectories(apacheRoot)
+                        .FirstOrDefault(d => Path.GetFileName(d).StartsWith("apache"))
+                    : null;
 
                     if (apacheVerDir != null)
                     {
@@ -228,17 +230,16 @@ namespace PGInstaller.Viewmodel
                         if (File.Exists(vhostPath))
                         {
                             string newVhostConfig = @"
-# Virtual Hosts
-#
+Virtual Hosts
 <VirtualHost _default_:80>
-  ServerName localhost
-  ServerAlias localhost
-  DocumentRoot ""${INSTALL_DIR}/www/puregold""
-  <Directory ""${INSTALL_DIR}/www/puregold/"">
-    Options +Indexes +Includes +FollowSymLinks +MultiViews
-    AllowOverride All
-    Require all granted
-  </Directory>
+ServerName localhost
+ServerAlias localhost
+DocumentRoot ""${INSTALL_DIR}/www/puregold""
+<Directory ""${INSTALL_DIR}/www/puregold/"">
+Options +Indexes +Includes +FollowSymLinks +MultiViews
+AllowOverride All
+Require all granted
+</Directory>
 </VirtualHost>";
                             File.WriteAllText(vhostPath, newVhostConfig);
                             Log("   [CONFIG] httpd-vhosts.conf updated.");
@@ -247,7 +248,8 @@ namespace PGInstaller.Viewmodel
 
                     string phpRoot = Path.Combine(wampBase, @"bin\php");
                     string? phpVerDir = Directory.Exists(phpRoot)
-                        ? Directory.GetDirectories(phpRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("php8.3"))
+                        ? Directory.GetDirectories(phpRoot)
+                            .FirstOrDefault(d => Path.GetFileName(d).StartsWith("php8.3"))
                         : null;
 
                     if (phpVerDir != null)
@@ -256,11 +258,12 @@ namespace PGInstaller.Viewmodel
                         string dll1 = "php_sqlsrv_83_ts_x64.dll";
                         string dll2 = "php_pdo_sqlsrv_83_ts_x64.dll";
 
-                        string sourceDll1 = Path.Combine(_assetsPath, dll1);
-                        string sourceDll2 = Path.Combine(_assetsPath, dll2);
+                        string sourceDll1 = Path.Combine(_assetsPath!, dll1);
+                        string sourceDll2 = Path.Combine(_assetsPath!, dll2);
 
                         if (File.Exists(sourceDll1)) File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
                         if (File.Exists(sourceDll2)) File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
+
                         string iniPath = Path.Combine(phpVerDir, "phpForApache.ini");
                         if (File.Exists(iniPath))
                         {
@@ -296,7 +299,7 @@ namespace PGInstaller.Viewmodel
 
         private async Task PasteVARIANCE()
         {
-            string varianceZip = Path.Combine(_assetsPath, "variance.zip");
+            string varianceZip = Path.Combine(_assetsPath!, "variance.zip");
             string targetDir = @"C:\wamp64\www\puregold";
 
             if (File.Exists(varianceZip))
@@ -325,22 +328,14 @@ namespace PGInstaller.Viewmodel
 
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
                 string productName = key?.GetValue("ProductName")?.ToString() ?? "";
-
                 bool isServer = productName.Contains("Server");
 
                 if (isServer)
                 {
-                    if (build >= 26100)
-                        return "Win11 24h2";     
-
-                    if (build >= 20348)
-                        return "Win10 21h2";     
-
-                    if (build >= 17763)
-                        return "Win10 1809";     
-
-                    if (build >= 14393)
-                        return "Win10 1607";     
+                    if (build >= 26100) return "Win11 24h2";
+                    if (build >= 20348) return "Win10 21h2";
+                    if (build >= 17763) return "Win10 1809";
+                    if (build >= 14393) return "Win10 1607";
                 }
                 else
                 {
@@ -349,14 +344,11 @@ namespace PGInstaller.Viewmodel
                         key?.GetValue("ReleaseId")?.ToString() ??
                         "";
 
-                    if (string.IsNullOrEmpty(releaseId))
-                        return null!;
+                    if (string.IsNullOrEmpty(releaseId)) return null!;
 
                     string osLabel = (build >= 22000) ? "Win11" : "Win10";
-
                     return $"{osLabel} {releaseId.ToLower()}";
                 }
-
                 return null!;
             }
             catch (Exception ex)
@@ -369,7 +361,7 @@ namespace PGInstaller.Viewmodel
         private async Task InstallNetFx3()
         {
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
-            string netfxZip = Path.Combine(_assetsPath, "netfx.zip");
+            string netfxZip = Path.Combine(_assetsPath!, "netfx.zip");
             string netfxExtractDir = @"C:\Assets\NetFX3_Source";
 
             if (!File.Exists(netfxZip))
@@ -392,6 +384,7 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
             }
+
             string matchedFolder = GetNetFxSourceFolder();
 
             if (string.IsNullOrEmpty(matchedFolder))
@@ -420,9 +413,9 @@ namespace PGInstaller.Viewmodel
 
             Log($"   [INSTALL] Installing from source: {Path.GetFileName(sourcePath)}");
             bool success = await RunProcessAsync(
-                "dism",
+                 "dism",
                 $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
-                "Enabling .NET 3.5 (Offline)"
+                 "Enabling .NET 3.5 (Offline)"
             );
 
             if (success)
@@ -430,12 +423,12 @@ namespace PGInstaller.Viewmodel
             else
                 Log("   [ERROR] Installation failed. Check logs.");
         }
+
         private async Task InstallPIMS()
         {
             await InstallNetFx3();
 
-            string pimsZip = Path.Combine(_assetsPath, "pims.zip");
-
+            string pimsZip = Path.Combine(_assetsPath!, "pims.zip");
             string pimsRoot = @"C:\Assets\PG_PIMS_Install";
 
             if (!File.Exists(pimsZip))
@@ -457,6 +450,7 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
             }
+
             string crDir = Path.Combine(pimsRoot, "CR10");
             string crSetup = Path.Combine(crDir, "CR10_Autorun_ENPRO.exe");
 
@@ -474,6 +468,7 @@ namespace PGInstaller.Viewmodel
                 }
                 await RunProcessAsync(crSetup, "", "Installing Crystal Reports 8.5/10");
             }
+
             string crRedist86 = Path.Combine(pimsRoot, "CRRedist2005_x86.msi");
             if (VerifyFile(crRedist86))
             {
@@ -488,11 +483,13 @@ namespace PGInstaller.Viewmodel
                     await RunProcessAsync("msiexec.exe", $"/i \"{crRedist64}\" /qn", "Installing CR Redist 2005 (x64)");
                 }
             }
+
             string poMsi = Path.Combine(pimsRoot, "POTracking", "POTracking.msi");
             if (VerifyFile(poMsi))
             {
                 await RunProcessAsync("msiexec.exe", $"/i \"{poMsi}\" /qn", "Installing POTracking");
             }
+
             string sqlDir = Path.Combine(pimsRoot, "SQLServer2005");
             string sqlMsi = Environment.Is64BitOperatingSystem
                 ? Path.Combine(sqlDir, "SQLServer2005_BC_x64.msi")
@@ -502,6 +499,7 @@ namespace PGInstaller.Viewmodel
             {
                 await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\"", "Installing SQL Server 2005 BC");
             }
+
             string fmsSource = Path.Combine(pimsRoot, "FMS");
             string fmsDest = @"C:\FMS";
 
@@ -565,13 +563,19 @@ namespace PGInstaller.Viewmodel
                 await Task.Run(() =>
                 {
                     Directory.CreateDirectory(targetDir);
-                    foreach (
-                        var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories)
-                    )
+                    string sourceDirClean = sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                    foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
                     {
-                        string relativePath = Path.GetRelativePath(sourceDir, file);
+                        // .NET 4.8 compatible replacement for Path.GetRelativePath
+                        string relativePath = file[sourceDirClean.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                         string destPath = Path.Combine(targetDir, relativePath);
-                        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+                        string destDirPath = Path.GetDirectoryName(destPath)!;
+                        if (!string.IsNullOrEmpty(destDirPath))
+                        {
+                            Directory.CreateDirectory(destDirPath);
+                        }
                         File.Copy(file, destPath, true);
                     }
                 });
@@ -587,62 +591,60 @@ namespace PGInstaller.Viewmodel
         {
             string baseKey = $@"SOFTWARE\{softwareKey}\Config";
 
-            using (var key = Registry.LocalMachine.CreateSubKey(baseKey))
+            using var key = Registry.LocalMachine.CreateSubKey(baseKey);
+            if (key != null)
             {
-                if (key != null)
-                {
-                    key.SetValue("IPADDRESS", ip);
-                    key.SetValue("DATABASE", softwareKey == "FIHO" ? "FreeItemsDB" : "FREEITEMSDB");
-                    key.SetValue("USERNAME", "sa");
-                    key.SetValue("PASSWORD", "sa");
-                    key.SetValue("PROVIDER", "SQLOLEDB.1");
-                    key.SetValue("Persist Security Info", "False");
-                }
+                key.SetValue("IPADDRESS", ip);
+                key.SetValue("DATABASE", softwareKey == "FIHO" ? "FreeItemsDB" : "FREEITEMSDB");
+                key.SetValue("USERNAME", "sa");
+                key.SetValue("PASSWORD", "sa");
+                key.SetValue("PROVIDER", "SQLOLEDB.1");
+                key.SetValue("Persist Security Info", "False");
             }
         }
 
         private string ShowInputDialog(string question, string defaultAnswer = "")
         {
-            System.Windows.Window window = new()
+            Window window = new()
             {
                 Title = "Configuration",
                 Width = 350,
                 Height = 180,
-                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
-                ResizeMode = System.Windows.ResizeMode.NoResize,
-                WindowStyle = System.Windows.WindowStyle.ToolWindow,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow,
             };
 
-            System.Windows.Controls.StackPanel stack = new System.Windows.Controls.StackPanel()
+            StackPanel stack = new()
             {
-                Margin = new System.Windows.Thickness(20),
+                Margin = new Thickness(20),
             };
 
             stack.Children.Add(
-                new System.Windows.Controls.TextBlock()
+                new TextBlock()
                 {
                     Text = question,
-                    FontWeight = System.Windows.FontWeights.Bold,
-                    Margin = new System.Windows.Thickness(0, 0, 0, 10),
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10),
                 }
             );
 
-            System.Windows.Controls.TextBox txtAnswer = new System.Windows.Controls.TextBox()
+            TextBox txtAnswer = new()
             {
                 Text = defaultAnswer,
                 Height = 30,
-                VerticalContentAlignment = System.Windows.VerticalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
             };
             stack.Children.Add(txtAnswer);
 
-            System.Windows.Controls.Button btnOk = new System.Windows.Controls.Button()
+            Button btnOk = new()
             {
                 Content = "OK",
                 IsDefault = true,
                 Height = 30,
                 Width = 80,
-                Margin = new System.Windows.Thickness(0, 20, 0, 0),
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new Thickness(0, 20, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
             };
             stack.Children.Add(btnOk);
 
@@ -651,7 +653,6 @@ namespace PGInstaller.Viewmodel
             btnOk.Click += (s, e) =>
             {
                 result = txtAnswer.Text;
-                window.DialogResult = true;
                 window.Close();
             };
 
@@ -663,7 +664,7 @@ namespace PGInstaller.Viewmodel
 
         private async Task InstallFSDM()
         {
-            string fsdmZip = Path.Combine(_assetsPath, "FSDM.zip");
+            string fsdmZip = Path.Combine(_assetsPath!, "FSDM.zip");
             string tempFsdmRoot = @"C:\Assets\PG_FSDM_Install";
 
             if (Directory.Exists(tempFsdmRoot))
@@ -715,13 +716,11 @@ namespace PGInstaller.Viewmodel
                     Log("   [SHORTCUT] Created Desktop Shortcut: FSDM");
                     try
                     {
-                        using (var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"))
+                        using var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers");
+                        if (key != null)
                         {
-                            if (key != null)
-                            {
-                                key.SetValue(exePath, "~ RUNASADMIN");
-                                Log("   [CONFIG] Applied 'Run as Administrator' flag to FSDeviceManager.");
-                            }
+                            key.SetValue(exePath, "~ RUNASADMIN");
+                            Log("   [CONFIG] Applied 'Run as Administrator' flag to FSDeviceManager.");
                         }
                     }
                     catch (Exception ex)
@@ -786,11 +785,12 @@ namespace PGInstaller.Viewmodel
                 catch (Exception ex) { Log($"   [ERROR] Failed copy updater: {ex.Message}"); }
             }
         }
+
         private async Task InstallCorelPSIllu()
         {
             await InstallNetFx3();
             string corelExe = "crdx5.exe";
-            string corelPath = Path.Combine(_assetsPath, corelExe);
+            string corelPath = Path.Combine(_assetsPath!, corelExe);
 
             if (File.Exists(corelPath))
             {
@@ -820,7 +820,7 @@ namespace PGInstaller.Viewmodel
             }
 
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string illuZip = Path.Combine(_assetsPath, "illucs6.zip");
+            string illuZip = Path.Combine(_assetsPath!, "illucs6.zip");
             if (File.Exists(illuZip))
             {
                 string destDir = Path.Combine(progFiles, "IllustratorCS6Portable");
@@ -849,7 +849,7 @@ namespace PGInstaller.Viewmodel
                 Log("   [SKIP] illucs6.zip not found.");
             }
 
-            string psZip = Path.Combine(_assetsPath, "pscs6.zip");
+            string psZip = Path.Combine(_assetsPath!, "pscs6.zip");
             if (File.Exists(psZip))
             {
                 string destDir = Path.Combine(progFiles, "PhotoshopCS6Portable");
@@ -882,9 +882,7 @@ namespace PGInstaller.Viewmodel
 
         private async Task CreateDesktopShortcut(string linkName, string targetPath)
         {
-            string desktopPath = Environment.GetFolderPath(
-                Environment.SpecialFolder.DesktopDirectory
-            );
+            string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             string shortcutPath = Path.Combine(desktopPath, $"{linkName}.lnk");
 
             if (!File.Exists(shortcutPath))
@@ -894,7 +892,7 @@ namespace PGInstaller.Viewmodel
                     $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; $s.Save()";
 
                 await RunProcessAsync(
-                    "powershell",
+                     "powershell",
                     $"-Command \"{script}\"",
                     $"Creating Shortcut: {linkName}",
                     true
@@ -905,14 +903,14 @@ namespace PGInstaller.Viewmodel
         private async Task InstallPutty()
         {
             await SmartInstall("PuTTY", "putty.msi", "/qn", "PuTTY");
-            string regFile = Path.Combine(_assetsPath, "Zone 11.reg");
+            string regFile = Path.Combine(_assetsPath!, "Zone 11.reg");
 
             if (File.Exists(regFile))
             {
                 await RunProcessAsync(
-                    "reg",
+                     "reg",
                     $"import \"{regFile}\"",
-                    "Applying Zone 11 Registry Settings"
+                     "Applying Zone 11 Registry Settings"
                 );
             }
             else
@@ -925,15 +923,13 @@ namespace PGInstaller.Viewmodel
         {
             await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
             string rpbName = "radmin.rpb";
-            string sourceRpb = Path.Combine(_assetsPath, rpbName);
+            string sourceRpb = Path.Combine(_assetsPath!, rpbName);
 
             if (File.Exists(sourceRpb))
             {
                 try
                 {
-                    string roamingPath = Environment.GetFolderPath(
-                        Environment.SpecialFolder.ApplicationData
-                    );
+                    string roamingPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                     string destDir = Path.Combine(roamingPath, "Radmin");
                     string destFile = Path.Combine(destDir, rpbName);
 
@@ -956,28 +952,28 @@ namespace PGInstaller.Viewmodel
         private async Task InstallWinSCP()
         {
             await SmartInstall(
-                "WinSCP",
-                "WinSCP.exe",
-                "/VERYSILENT /NORESTART /ALLUSERS",
-                "WinSCP"
+                 "WinSCP",
+                 "WinSCP.exe",
+                 "/VERYSILENT /NORESTART /ALLUSERS",
+                 "WinSCP"
             );
 
             string iniName = "WinSCP.ini";
-            string iniSource = Path.Combine(_assetsPath, iniName);
+            string iniSource = Path.Combine(_assetsPath!, iniName);
 
             if (File.Exists(iniSource))
             {
                 string[] installDirs =
-                {
+                [
                     Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                        "WinSCP"
+                         "WinSCP"
                     ),
                     Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                        "WinSCP"
+                         "WinSCP"
                     ),
-                };
+                ];
 
                 bool copied = false;
 
@@ -1022,7 +1018,7 @@ namespace PGInstaller.Viewmodel
             if (string.IsNullOrWhiteSpace(ownIp)) { Log("   [SKIP] IP missing."); return; }
 
             string scriptName = "cbm.ps1";
-            string csvName = "port# & IP ZONE11.csv";
+            string csvName = "port#  & IP ZONE11.csv";
             string tempDir = @"C:\Assets\PG_CBM_Exec";
 
             try
@@ -1030,10 +1026,10 @@ namespace PGInstaller.Viewmodel
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
 
-                string sourceCsv = Path.Combine(_assetsPath, csvName);
+                string sourceCsv = Path.Combine(_assetsPath!, csvName);
                 if (!File.Exists(sourceCsv))
                 {
-                    var files = Directory.GetFiles(_assetsPath, "*.csv", SearchOption.AllDirectories);
+                    var files = Directory.GetFiles(_assetsPath!, "*.csv", SearchOption.AllDirectories);
                     var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(csvName, StringComparison.OrdinalIgnoreCase));
                     if (match != null) sourceCsv = match;
                 }
@@ -1048,7 +1044,7 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
 
-                string sourceScript = Path.Combine(_assetsPath, scriptName);
+                string sourceScript = Path.Combine(_assetsPath!, scriptName);
                 if (!File.Exists(sourceScript))
                 {
                     Log($"   [ERROR] {scriptName} not found in Assets.");
@@ -1087,7 +1083,7 @@ namespace PGInstaller.Viewmodel
             Log("   [INIT] Starting Bartender Installation...");
 
             string zipName = "bartender.zip";
-            string zipPath = Path.Combine(_assetsPath, zipName);
+            string zipPath = Path.Combine(_assetsPath!, zipName);
             string extractDir = @"C:\Assets\Bartender_Install";
 
             if (!File.Exists(zipPath))
@@ -1123,7 +1119,7 @@ namespace PGInstaller.Viewmodel
                 return;
             }
 
-            string btZip = Path.Combine(_assetsPath, "bt.zip");
+            string btZip = Path.Combine(_assetsPath!, "bt.zip");
             string templatesDest = @"C:\Bartender Templates";
 
             if (File.Exists(btZip))

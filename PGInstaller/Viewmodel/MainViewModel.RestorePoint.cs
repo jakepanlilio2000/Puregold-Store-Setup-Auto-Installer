@@ -1,12 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
@@ -20,9 +15,8 @@ namespace PGInstaller.Viewmodel
             Log("   [BACKUP] Creating System Restore Point...");
             try
             {
-                
                 string cmd = "Checkpoint-Computer -Description \"PG-Installer Auto Point\" -RestorePointType \"MODIFY_SETTINGS\"";
-                string script = $"try {{ Enable-ComputerRestore -Drive \"C:\"; {cmd} }} catch {{ Write-Error $_ }}";
+                string script = $"try {{ Enable-ComputerRestore -Drive \"C:\\\"; {cmd} }} catch {{ Write-Error $_ }}";
 
                 await RunProcessAsync("powershell", $"-Command \"{script}\"", "Restore Point Creation", true);
             }
@@ -41,7 +35,7 @@ namespace PGInstaller.Viewmodel
                     using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore");
                     if (key != null)
                     {
-                        object? val = key.GetValue("DisableSR");
+                        object val = key.GetValue("DisableSR")!;
                         if (val != null && (int)val == 1)
                         {
                             IsRestorePointEnabled = false;
@@ -56,7 +50,6 @@ namespace PGInstaller.Viewmodel
                 }
                 catch
                 {
-                   
                     IsRestorePointEnabled = false;
                 }
             });
@@ -78,11 +71,13 @@ namespace PGInstaller.Viewmodel
                 Log("   [FALLBACK] Opened System Protection (click 'System Restore...').");
                 return;
             }
+
             if (TryStart("control.exe", "/name Microsoft.System"))
             {
                 Log("   [FALLBACK] Opened Control Panel System (go to System Protection).");
                 return;
             }
+
             if (TryStart("ms-settings:recovery"))
             {
                 Log("   [FALLBACK] Opened Settings > Recovery (use Advanced startup if needed).");
@@ -114,7 +109,5 @@ namespace PGInstaller.Viewmodel
                 return false;
             }
         }
-
-
     }
 }

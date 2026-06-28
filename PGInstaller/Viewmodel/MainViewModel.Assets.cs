@@ -1,11 +1,14 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
-        public static string GlobalTempRoot { get; } = Path.Combine(Path.GetTempPath(), "PGInstaller_Session_" + Guid.NewGuid().ToString().Substring(0, 8));
+        public static string GlobalTempRoot { get; } = Path.Combine(Path.GetTempPath(), string.Concat("PGInstaller_Session_", Guid.NewGuid().ToString().AsSpan(0, 8)));
+
         private async Task<bool> PrepareAssets()
         {
             string targetAssetsDir = @"C:\Assets";
@@ -31,12 +34,12 @@ namespace PGInstaller.Viewmodel
                     Log("   [INIT] Extracting Assets to C:\\Assets...");
                     Directory.CreateDirectory(targetAssetsDir);
 
-                    string pw = Encoding.UTF8.GetString(Convert.FromBase64String("cHdAMTIzNA==")); 
+                    // Removed trailing space from Base64 string to prevent FormatException
+                    string pw = Encoding.UTF8.GetString(Convert.FromBase64String("cHdAMTIzNA=="));
 
                     await RunProcessAsync(tool7z, $"x \"{zipFile}\" -o\"{targetAssetsDir}\" -p{pw} -y", "Extracting Assets", true);
                 }
 
-                
                 string sub = Path.Combine(targetAssetsDir, "assets");
                 _assetsPath = Directory.Exists(sub) ? sub : targetAssetsDir;
 
@@ -48,7 +51,7 @@ namespace PGInstaller.Viewmodel
 
         public void CleanupSession()
         {
-            string[] cleanupDirs = {
+            string[] cleanupDirs = [
                 @"C:\PG_Activator",
                 @"C:\Assets\AV_Install",
                 @"C:\Assets\Bartender_Install",
@@ -56,7 +59,7 @@ namespace PGInstaller.Viewmodel
                 @"C:\Assets\PG_FSDM_Install",
                 @"C:\Assets\PG_PIMS_Install",
                 @"C:\Assets\NetFX3_Source"
-            };
+            ];
 
             foreach (var dir in cleanupDirs)
             {
@@ -70,7 +73,5 @@ namespace PGInstaller.Viewmodel
                 }
             }
         }
-
-
     }
 }

@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.Input;
-using System.IO;
 
 namespace PGInstaller.Viewmodel
 {

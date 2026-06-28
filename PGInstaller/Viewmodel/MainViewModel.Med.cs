@@ -1,9 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-
+using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
@@ -20,7 +21,7 @@ namespace PGInstaller.Viewmodel
             { "Bartender Patcher", "bp.exe" },
         };
 
-        public ObservableCollection<string> MedicineList => new ObservableCollection<string>(MedicineMap.Keys);
+        public ObservableCollection<string> MedicineList => new(MedicineMap.Keys);
 
         [RelayCommand]
         private async Task RunMedicine()
@@ -29,7 +30,7 @@ namespace PGInstaller.Viewmodel
 
             if (MedicineMap.TryGetValue(SelectedMedicineName, out string? fileName))
             {
-                string fullPath = Path.Combine(_assetsPath, "Activators", fileName);
+                string fullPath = Path.Combine(_assetsPath!, "Activators", fileName);
 
                 if (File.Exists(fullPath))
                 {
@@ -41,7 +42,7 @@ namespace PGInstaller.Viewmodel
                         {
                             FileName = fullPath,
                             UseShellExecute = true,
-                            WorkingDirectory = Path.GetDirectoryName(fullPath) 
+                            WorkingDirectory = Path.GetDirectoryName(fullPath)
                         });
                     }
                     catch (Exception ex)
@@ -59,8 +60,7 @@ namespace PGInstaller.Viewmodel
                 Log($"   [ERROR] No file mapped for: {SelectedMedicineName}");
             }
 
-            await Task.CompletedTask; 
+            await Task.CompletedTask;
         }
-
     }
 }

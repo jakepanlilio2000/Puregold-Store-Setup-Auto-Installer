@@ -1,5 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 
 namespace PGInstaller.Viewmodel
@@ -22,12 +24,12 @@ namespace PGInstaller.Viewmodel
             {
                 await PrepareAssets();
                 string scriptName = "activator.cmd";
-                string sourcePath = Path.Combine(_assetsPath, scriptName);
+                string sourcePath = Path.Combine(_assetsPath!, scriptName);
 
                 if (!File.Exists(sourcePath))
                 {
                     scriptName = "win.cmd";
-                    sourcePath = Path.Combine(_assetsPath, scriptName);
+                    sourcePath = Path.Combine(_assetsPath!, scriptName);
                 }
 
                 if (File.Exists(sourcePath))
@@ -74,7 +76,6 @@ namespace PGInstaller.Viewmodel
             string? altName = null
         )
         {
-
             if (IsBusy) return;
             IsBusy = true;
             NotifyCommands();
@@ -86,10 +87,10 @@ namespace PGInstaller.Viewmodel
             {
                 await PrepareAssets();
 
-                string scriptPath = Path.Combine(_assetsPath, scriptName);
+                string scriptPath = Path.Combine(_assetsPath!, scriptName);
                 if (!File.Exists(scriptPath) && !string.IsNullOrEmpty(altName))
                 {
-                    string altPath = Path.Combine(_assetsPath, altName);
+                    string altPath = Path.Combine(_assetsPath!, altName);
                     if (File.Exists(altPath))
                     {
                         scriptPath = altPath;

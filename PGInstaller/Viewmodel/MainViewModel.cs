@@ -1,20 +1,21 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 
 namespace PGInstaller.Viewmodel
 {
-
     public partial class MainViewModel : ObservableObject
     {
-
-        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
         [ObservableProperty]
@@ -26,28 +27,26 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty]
         private string? _selectedDepartment;
 
-        private string _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
+        private string? _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
-        public ObservableCollection<string> PreviewList { get; } =
-            new ObservableCollection<string>();
+        public ObservableCollection<string> PreviewList { get; } = [];
 
         public ObservableCollection<string> Departments { get; } =
-            new ObservableCollection<string>
-            {
-                "IT",
-                "HRD",
-                "ICD",
-                "Payables",
-                "Creative",
-                "Admin",
-                "Audit",
-                "Store Operations (Manager)",
-                "Store Operations (Customer Service)",
-                "Store Operations (Selling)",
-                "Store Operations (HBC)",
-                "Receiving",
-                "Treasury",
-            };
+        [
+            "IT",
+            "HRD",
+            "ICD",
+            "Payables",
+            "Creative",
+            "Admin",
+            "Audit",
+            "Store Operations (Manager)",
+            "Store Operations (Customer Service)",
+            "Store Operations (Selling)",
+            "Store Operations (HBC)",
+            "Receiving",
+            "Treasury",
+        ];
 
         public MainViewModel()
         {
@@ -60,8 +59,7 @@ namespace PGInstaller.Viewmodel
         [RelayCommand]
         private async Task Install()
         {
-            if (IsBusy)
-                return;
+            if (IsBusy) return;
 
             if (IsRestorePointEnabled)
             {
@@ -79,9 +77,9 @@ namespace PGInstaller.Viewmodel
             {
                 Log("   [CONFIG] Disabling Windows Firewall...");
                 await RunProcessAsync(
-                    "netsh",
-                    "advfirewall set allprofiles state off",
-                    "Disabling Windows Firewall (Domain, Private, Public)",
+                     "netsh",
+                     "advfirewall set allprofiles state off",
+                     "Disabling Windows Firewall (Domain, Private, Public)",
                     true
                 );
 
@@ -164,14 +162,14 @@ namespace PGInstaller.Viewmodel
                 return;
             }
 
-            string installerPath = Path.Combine(_assetsPath, exeName);
+            string installerPath = Path.Combine(_assetsPath!, exeName);
 
             if (File.Exists(installerPath))
             {
                 if (exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
                 {
                     await RunProcessAsync(
-                        "msiexec.exe",
+                         "msiexec.exe",
                         $"/i \"{installerPath}\" {args}",
                         $"Installing {appName}"
                     );
@@ -187,8 +185,6 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-
-
         #region Package Implementations
 
         private async Task InstallCommonPackages()
@@ -203,6 +199,7 @@ namespace PGInstaller.Viewmodel
             await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
             await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
             await SmartInstall("Sticky Notes", "sticky.exe", "Setup_SimpleStickyNotes.exe /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Sticky Notes");
+
             bool hasModernVc = IsAppInstalled("Visual C++ v14") ||
                                IsAppInstalled("Visual C++ 2015") ||
                                IsAppInstalled("Visual C++ 2015-2022") ||
@@ -234,7 +231,7 @@ namespace PGInstaller.Viewmodel
             Log("   [PATCH] Stopping WPS processes to unlock files...");
             await Task.Run(() =>
             {
-                string[] wpsProcs = { "wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate" };
+                string[] wpsProcs = ["wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate"];
                 foreach (var procName in wpsProcs)
                 {
                     try
@@ -246,7 +243,7 @@ namespace PGInstaller.Viewmodel
             });
             await Task.Delay(2000);
 
-            string wpsExtractDir = Path.Combine(_assetsPath, "WPS");
+            string wpsExtractDir = Path.Combine(_assetsPath!, "WPS");
             string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
 
             if (!File.Exists(authDllSource))
@@ -306,10 +303,11 @@ namespace PGInstaller.Viewmodel
             await RunProcessAsync("powercfg", "/change monitor-timeout-ac 0", "Disable Monitor Sleep (AC)");
             await RunProcessAsync("powercfg", "/change monitor-timeout-dc 0", "Disable Monitor Sleep (Battery)");
         }
+
         private async Task ApplyWallpaper()
         {
             string wallpaperName = "PG-wallpaper.jpeg";
-            string wallpaperPath = Path.Combine(_assetsPath, wallpaperName);
+            string wallpaperPath = Path.Combine(_assetsPath!, wallpaperName);
 
             if (File.Exists(wallpaperPath))
             {
@@ -344,7 +342,7 @@ namespace PGInstaller.Viewmodel
 
         private async Task InstallZipPackage(string zipName, string installerName, string args, string description)
         {
-            string zipPath = Path.Combine(_assetsPath, zipName);
+            string zipPath = Path.Combine(_assetsPath!, zipName);
             string extractRoot = @"C:\Assets";
             string extractPath = Path.Combine(extractRoot, Path.GetFileNameWithoutExtension(zipName));
 
@@ -417,6 +415,12 @@ namespace PGInstaller.Viewmodel
             bool suppressError = false
         )
         {
+            string? workingDir = Path.GetDirectoryName(fileName);
+            if (string.IsNullOrWhiteSpace(workingDir))
+            {
+                workingDir = Environment.CurrentDirectory;
+            }
+
             var startInfo = new ProcessStartInfo
             {
                 FileName = fileName,
@@ -426,7 +430,7 @@ namespace PGInstaller.Viewmodel
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
-                WorkingDirectory = Path.GetDirectoryName(fileName),
+                WorkingDirectory = workingDir,
             };
             return await RunCustomProcess(startInfo, description, suppressError);
         }
@@ -445,20 +449,22 @@ namespace PGInstaller.Viewmodel
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
-                    string? l = CleanLogLine(e.Data);
+                    string l = CleanLogLine(e.Data);
                     if (l != null)
-                        Log($"   > {l}");
+                        Log($"    > {l}");
                 }
             };
+
             process.ErrorDataReceived += (s, e) =>
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
-                    string? l = CleanLogLine(e.Data);
+                    string l = CleanLogLine(e.Data);
                     if (l != null)
-                        Log($"   > {l}");
+                        Log($"    > {l}");
                 }
             };
+
             process.Exited += (s, e) =>
             {
                 tcs.SetResult(process.ExitCode == 0);
@@ -484,10 +490,10 @@ namespace PGInstaller.Viewmodel
         private bool IsAppInstalled(string partialName)
         {
             string[] registryPaths =
-            {
+            [
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
                 @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-            };
+            ];
 
             foreach (var path in registryPaths)
             {
@@ -500,13 +506,7 @@ namespace PGInstaller.Viewmodel
                         {
                             using var subkey = key.OpenSubKey(subkeyName);
                             var displayName = subkey?.GetValue("DisplayName") as string;
-                            if (
-                                !string.IsNullOrEmpty(displayName)
-                                && displayName.Contains(
-                                    partialName,
-                                    StringComparison.OrdinalIgnoreCase
-                                )
-                            )
+                            if (!string.IsNullOrEmpty(displayName) && displayName.Contains(partialName, StringComparison.OrdinalIgnoreCase))
                                 return true;
                         }
                     }
@@ -516,23 +516,23 @@ namespace PGInstaller.Viewmodel
             return false;
         }
 
-        private string? CleanLogLine(string line)
+        private string CleanLogLine(string line)
         {
             line = line.Trim();
             if (string.IsNullOrWhiteSpace(line))
-                return null;
+                return null!;
             if (line.StartsWith("[=") || line.StartsWith("======="))
-                return null;
+                return null!;
             if (line.Contains("Extracting"))
-                return null;
+                return null!;
             if (Regex.IsMatch(line, @"\d+%$"))
-                return null;
+                return null!;
             return line;
         }
 
         private void Log(string message)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 LogOutput += $"{message}{Environment.NewLine}";
             });
