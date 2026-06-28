@@ -1,7 +1,7 @@
 ﻿using PGInstaller.Viewmodel;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+
 namespace PGInstaller
 {
     public partial class MainWindow : Window
@@ -11,12 +11,15 @@ namespace PGInstaller
             InitializeComponent();
         }
 
-        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void Terminal_TextChanged(object sender, TextChangedEventArgs e)
         {
-            (sender as TextBox)?.ScrollToEnd();
+            if (sender is TextBox textBox)
+            {
+                textBox.ScrollToEnd();
+            }
         }
 
-        protected override void OnClosed(EventArgs e)
+        protected override void OnClosed(System.EventArgs e)
         {
             base.OnClosed(e);
             if (DataContext is MainViewModel vm)

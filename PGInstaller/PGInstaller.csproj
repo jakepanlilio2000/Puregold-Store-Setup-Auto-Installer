@@ -21,6 +21,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="MaterialDesignThemes" Version="5.3.2" />
 	</ItemGroup>
 
 	<ItemGroup>

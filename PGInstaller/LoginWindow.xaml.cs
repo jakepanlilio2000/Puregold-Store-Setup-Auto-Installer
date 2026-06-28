@@ -17,7 +17,6 @@ namespace PGInstaller
         }
 
         private void BtnLogin_Click(object sender, RoutedEventArgs e) => ValidatePassword();
-
         private void BtnExit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
         private void TxtPassword_KeyDown(object sender, KeyEventArgs e)
@@ -43,36 +42,38 @@ namespace PGInstaller
                 var main = new MainWindow();
                 Application.Current.MainWindow = main;
                 main.Show();
-
-                Close(); 
+                Close();
                 return;
             }
 
-            MessageBox.Show("Access Denied: Invalid Credentials", "Security Alert",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-
+            MessageBox.Show("Access Denied: Invalid Credentials", "Security Alert", MessageBoxButton.OK, MessageBoxImage.Error);
             TxtPassword.Clear();
             TxtPassword.Focus();
         }
 
         private static string ComputeSha256Hex(string rawData)
         {
-            byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
-            return Convert.ToHexString(bytes).ToLowerInvariant();
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
         }
 
         private static bool FixedTimeEqualsHex(string a, string b)
         {
-            try
+            if (a.Length != b.Length) return false;
+            int diff = 0;
+            for (int i = 0; i < a.Length; i++)
             {
-                var ba = Convert.FromHexString(a);
-                var bb = Convert.FromHexString(b);
-                return CryptographicOperations.FixedTimeEquals(ba, bb);
+                diff |= a[i] ^ b[i];
             }
-            catch
-            {
-                return false;
-            }
+            return diff == 0;
         }
     }
 }
