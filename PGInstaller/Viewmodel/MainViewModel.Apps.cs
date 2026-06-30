@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -107,6 +108,7 @@ namespace PGInstaller.Viewmodel
             {
                 Log("   [WARNING] install.bat not found in Assets.");
             }
+            await ConfigureRadminServer();
         }
 
         private async Task InstallInventoryTools()
@@ -146,22 +148,15 @@ namespace PGInstaller.Viewmodel
 
         private async Task PinToTaskbar(string appName, string exeName)
         {
-            string syspinPath = Path.Combine(_assetsPath!, "syspin.exe");
-            if (!File.Exists(syspinPath))
-            {
-                Log($"   [WARN] Cannot pin {appName} - 'syspin.exe' is missing from Assets.");
-                return;
-            }
-
             string[] searchPaths = [
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
-                Environment.GetFolderPath(Environment.SpecialFolder.Programs),
-                @"C:\Program Files\Google\Chrome\Application",
-                @"C:\Program Files\Mozilla Firefox",
-                @"C:\Program Files\Mozilla Thunderbird"
-            ];
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+        Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+        @"C:\Program Files\Google\Chrome\Application",
+        @"C:\Program Files\Mozilla Firefox",
+        @"C:\Program Files\Mozilla Thunderbird"
+    ];
 
-            string targetPath = null!;
+            string? targetPath = null;
 
             foreach (var dir in searchPaths)
             {
@@ -180,17 +175,29 @@ namespace PGInstaller.Viewmodel
                             break;
                         }
                     }
-                    catch
-                    {
-                        // Ignore access denied or other directory errors
-                    }
+                    catch { }
                 }
             }
 
             if (targetPath != null)
             {
                 Log($"   [CONFIG] Pinning {appName} to Taskbar...");
-                await RunProcessAsync(syspinPath, $"\"{targetPath}\" c:5386", $"Pinning {appName}", true);
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = targetPath,
+                        Verb = "taskbarpin",
+                        UseShellExecute = true,
+                        CreateNoWindow = true
+                    };
+                    Process.Start(startInfo);
+                    Log($"   [SUCCESS] Pinned {appName} to Taskbar.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to pin {appName}: {ex.Message}");
+                }
             }
             else
             {
@@ -198,6 +205,112 @@ namespace PGInstaller.Viewmodel
             }
         }
 
+        private async Task InstallAVGW()
+        {
+            string exeName = "A&VGWSetup.exe";
+            string installerPath = Path.Combine(_assetsPath!, exeName);
+
+            if (!File.Exists(installerPath))
+            {
+                Log($"   [ERROR] {exeName} not found in Assets.");
+                return;
+            }
+
+            Log("   [CONFIG] Requesting A&VGW Configuration...");
+            string dbHost = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Database IP / Host for A&VGW:", "192.92.1.100")
+            );
+            string storeNum = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Default Store Number for A&VGW:", "722")
+            );
+            string fallbackStore = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Fallback Store Name for A&VGW:", "PUREGOLD SAN FERNANDO")
+            );
+
+            Log("   [INSTALL] Installing Annual & Variance Gateway silently...");
+            await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing A&VGW");
+
+            // Locate the installed config.json in Program Files
+            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string? configPath = null;
+
+            foreach (var dir in new[] { progFiles, progFilesX86 })
+            {
+                string targetDir = Path.Combine(dir, "Annual & Variance Gateway");
+                if (Directory.Exists(targetDir))
+                {
+                    configPath = Path.Combine(targetDir, "config.json");
+                    break;
+                }
+            }
+
+            if (configPath != null && File.Exists(configPath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(configPath);
+
+                    // Inject the user-provided values into the JSON file
+                    json = Regex.Replace(json, @"""DbHost""\s*:\s*""[^""]*""", $"\"DbHost\": \"{dbHost}\"");
+                    json = Regex.Replace(json, @"""DefaultStoreNum""\s*:\s*""[^""]*""", $"\"DefaultStoreNum\": \"{storeNum}\"");
+                    json = Regex.Replace(json, @"""FallbackStoreName""\s*:\s*""[^""]*""", $"\"FallbackStoreName\": \"{fallbackStore}\"");
+
+                    File.WriteAllText(configPath, json);
+                    Log("   [SUCCESS] A&VGW config.json updated with custom settings.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to update A&VGW config: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log($"   [WARN] config.json not found. It may be installed in a non-standard directory.");
+            }
+        }
+
+        private async Task ConfigureRadminServer()
+        {
+            try
+            {
+                string regFile = Path.Combine(_assetsPath!, "radmin_config.reg");
+
+                if (File.Exists(regFile))
+                {
+                    Log("   [CONFIG] Importing Radmin Server settings (Port 12, Radmin Security, User: administrator)...");
+                    await RunProcessAsync("reg", $"import \"{regFile}\"", "Importing Radmin configuration", true);
+
+                    string rserverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "rserver30", "rserver3.exe");
+                    if (!File.Exists(rserverPath))
+                    {
+                        rserverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.SystemX86), "rserver30", "rserver3.exe");
+                    }
+
+                    if (File.Exists(rserverPath))
+                    {
+                        await RunProcessAsync(rserverPath, "/stop", "Stopping Radmin Server service", true);
+                        await Task.Delay(1000);
+                        await RunProcessAsync(rserverPath, "/start", "Starting Radmin Server service", true);
+                    }
+                    else
+                    {
+                        Log("   [WARN] rserver3.exe not found. Please restart the Radmin Server service manually to apply settings.");
+                    }
+
+                    Log("   [SUCCESS] Radmin Server configured for Radmin Security.");
+                }
+                else
+                {
+                    Log("   [WARN] radmin_config.reg not found in Assets folder.");
+                    Log("   [INFO] Please configure Radmin Server manually and export the registry key to Assets\\radmin_config.reg");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Failed to configure Radmin Server: {ex.Message}");
+            }
+        }
         private async Task InstallWampServer()
         {
             if (!File.Exists(@"C:\wamp64\wampmanager.exe"))
