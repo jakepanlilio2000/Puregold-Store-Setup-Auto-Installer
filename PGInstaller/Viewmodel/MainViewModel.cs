@@ -1,15 +1,16 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
+using System.Windows.Data;
 
 namespace PGInstaller.Viewmodel
 {
@@ -18,18 +19,36 @@ namespace PGInstaller.Viewmodel
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
+        [ObservableProperty] private string? _logOutput;
+        [ObservableProperty] private bool _isBusy;
+        [ObservableProperty] private string? _selectedDepartment;
+        [ObservableProperty] private int _pendingTasksCount;
+        [ObservableProperty] private string _domainStatus = "Checking...";
         [ObservableProperty]
-        private string? _logOutput;
+        private string _currentTaskDescription = "Ready";
+        [ObservableProperty]
+        private int _installSuccessCount;
 
         [ObservableProperty]
-        private bool _isBusy;
+        private int _installFailCount;
 
         [ObservableProperty]
-        private string? _selectedDepartment;
+        private int _installSkipCount;
+        [ObservableProperty]
+        private int _progressPercentage;
+
+        [ObservableProperty]
+        private int _totalSteps;
+
+        [ObservableProperty]
+        private int _currentStep;
+        [ObservableProperty]
+        private string _manifestSearchText = "";
+
+        public ICollectionView FilteredPreviewList { get; private set; }
+        public ObservableCollection<InstallAppItem> PreviewList { get; } = [];
 
         private string? _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
-
-        public ObservableCollection<string> PreviewList { get; } = [];
 
         public ObservableCollection<string> Departments { get; } =
         [
@@ -51,15 +70,101 @@ namespace PGInstaller.Viewmodel
         public MainViewModel()
         {
             SelectedDepartment = "IT";
+
+            PreviewList.CollectionChanged += PreviewList_CollectionChanged;
+
             Log("Welcome to PG Installer. Select a department to begin.");
             _ = CheckDefender();
             _ = CheckSystemRestoreStatus();
+            _ = CheckDomainStatusAsync();
+
+            FilteredPreviewList = CollectionViewSource.GetDefaultView(PreviewList);
+            FilteredPreviewList.Filter = item =>
+            {
+                if (item is InstallAppItem app)
+                {
+                    return string.IsNullOrWhiteSpace(ManifestSearchText) ||
+                           app.Name.Contains(ManifestSearchText, StringComparison.OrdinalIgnoreCase);
+                }
+                return true;
+            };
         }
 
+        partial void OnManifestSearchTextChanged(string value)
+        {
+            FilteredPreviewList.Refresh();
+        }
+
+        [RelayCommand]
+        private void ClearSearch()
+        {
+            ManifestSearchText = "";
+        }
+        private void PreviewList_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems != null)
+            {
+                foreach (InstallAppItem item in e.OldItems)
+                    item.PropertyChanged -= Item_PropertyChanged;
+            }
+            if (e.NewItems != null)
+            {
+                foreach (InstallAppItem item in e.NewItems)
+                    item.PropertyChanged += Item_PropertyChanged;
+            }
+            UpdatePendingTasksCount();
+        }
+
+        private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(InstallAppItem.IsChecked))
+            {
+                UpdatePendingTasksCount();
+            }
+        }
+
+        private void UpdatePendingTasksCount()
+        {
+            PendingTasksCount = PreviewList.Count(x => x.IsChecked);
+        }
+        private async Task CheckDomainStatusAsync()
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var properties = IPGlobalProperties.GetIPGlobalProperties();
+                    if (!string.IsNullOrEmpty(properties.DomainName) && properties.DomainName != properties.HostName)
+                    {
+                        DomainStatus = $"Joined: {properties.DomainName}";
+                    }
+                    else
+                    {
+                        DomainStatus = "Workgroup / Not Joined";
+                    }
+                }
+                catch
+                {
+                    DomainStatus = "Unknown";
+                }
+            });
+        }
         [RelayCommand]
         private async Task Install()
         {
             if (IsBusy) return;
+
+            var selectedApps = PreviewList.Where(x => x.IsChecked).Select(x => x.Name).ToList();
+            if (!selectedApps.Any())
+            {
+                Log("   [WARN] No applications selected for installation.");
+                return;
+            }
+
+            TotalSteps = selectedApps.Count;
+            CurrentStep = 0;
+            ProgressPercentage = 0;
+            CurrentTaskDescription = "Initializing installation...";
 
             if (IsRestorePointEnabled)
             {
@@ -71,67 +176,34 @@ namespace PGInstaller.Viewmodel
             IsBusy = true;
             LogOutput = "";
             Log("------------------------------------------------");
-            Log($"Starting Installation for: {SelectedDepartment}");
-
+            Log($"Starting Installation for: {SelectedDepartment} ({selectedApps.Count} items selected)");
             try
             {
                 Log("   [CONFIG] Disabling Windows Firewall...");
-                await RunProcessAsync(
-                     "netsh",
-                     "advfirewall set allprofiles state off",
-                     "Disabling Windows Firewall (Domain, Private, Public)",
-                    true
-                );
+                await RunProcessAsync("netsh", "advfirewall set allprofiles state off", "Disabling Windows Firewall", true);
 
                 bool assetsReady = await PrepareAssets();
-
                 if (!assetsReady)
                 {
                     Log("CRITICAL: Failed to prepare assets. Stopping.");
                     return;
                 }
-
+                await HandleComputerRenameAsync();
                 switch (SelectedDepartment)
                 {
-                    case "IT":
-                        await InstallITPackage();
-                        break;
-                    case "HRD":
-                        await InstallHRDPackage();
-                        break;
-                    case "ICD":
-                        await InstallICDPackage();
-                        break;
-                    case "Payables":
-                        await InstallPayablesPackage();
-                        break;
-                    case "Admin":
-                        await InstallAdminPackage();
-                        break;
-                    case "Audit":
-                        await InstallAuditPackage();
-                        break;
-                    case "Store Operations (Manager)":
-                        await InstallStoreOperationsPackage("Manager");
-                        break;
-                    case "Store Operations (Customer Service)":
-                        await InstallStoreOperationsPackage("Customer Service");
-                        break;
-                    case "Store Operations (Selling)":
-                        await InstallStoreOperationsPackage("Selling");
-                        break;
-                    case "Store Operations (HBC)":
-                        await InstallStoreOperationsPackage("HBC");
-                        break;
-                    case "Creative":
-                        await InstallCreativePackage();
-                        break;
-                    case "Receiving":
-                        await InstallReceivingPackage();
-                        break;
-                    case "Treasury":
-                        await InstallTreasuryPackage();
-                        break;
+                    case "IT": await InstallITPackage(selectedApps); break;
+                    case "HRD": await InstallHRDPackage(selectedApps); break;
+                    case "ICD": await InstallICDPackage(selectedApps); break;
+                    case "Payables": await InstallPayablesPackage(selectedApps); break;
+                    case "Admin": await InstallAdminPackage(selectedApps); break;
+                    case "Audit": await InstallAuditPackage(selectedApps); break;
+                    case "Store Operations (Manager)": await InstallStoreOperationsPackage("Manager", selectedApps); break;
+                    case "Store Operations (Customer Service)": await InstallStoreOperationsPackage("Customer Service", selectedApps); break;
+                    case "Store Operations (Selling)": await InstallStoreOperationsPackage("Selling", selectedApps); break;
+                    case "Store Operations (HBC)": await InstallStoreOperationsPackage("HBC", selectedApps); break;
+                    case "Creative": await InstallCreativePackage(selectedApps); break;
+                    case "Receiving": await InstallReceivingPackage(selectedApps); break;
+                    case "Treasury": await InstallTreasuryPackage(selectedApps); break;
                     default:
                         Log("No specific package defined for this department yet.");
                         break;
@@ -146,156 +218,158 @@ namespace PGInstaller.Viewmodel
                 IsBusy = false;
                 Log("------------------------------------------------");
                 Log("Process Completed.");
+                Application.Current.Dispatcher.Invoke(ShowInstallationSummary);
             }
         }
 
-        private async Task SmartInstall(
-            string appName,
-            string exeName,
-            string args = "/silent",
-            string? checkName = null
-        )
+
+        private async Task SmartInstall(string appName, string exeName, string args = "/silent", string? checkName = null)
         {
             if (!string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
             {
-                Log($"   [SKIP] {appName} is already installed.");
+                RecordInstallResult(appName, false, true);
                 return;
             }
 
             string installerPath = Path.Combine(_assetsPath!, exeName);
-
             if (File.Exists(installerPath))
             {
-                if (exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
-                {
-                    await RunProcessAsync(
-                         "msiexec.exe",
-                        $"/i \"{installerPath}\" {args}",
-                        $"Installing {appName}"
-                    );
-                }
-                else
-                {
-                    await RunProcessAsync(installerPath, args, $"Installing {appName}");
-                }
+                bool success = exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
+                    ? await RunProcessAsync("msiexec.exe", $"/i \"{installerPath}\" {args}", $"Installing {appName}")
+                    : await RunProcessAsync(installerPath, args, $"Installing {appName}");
+
+                RecordInstallResult(appName, success);
             }
             else
             {
-                Log($"   [SKIP] Installer not found: {exeName}");
+                RecordInstallResult(appName, false, true); 
+                Log($"   [WARN] Installer not found: {exeName}");
             }
         }
 
         #region Package Implementations
 
-        private async Task InstallCommonPackages()
+        private async Task InstallCommonPackages(IEnumerable<string> selectedApps)
         {
-            await SmartInstall("Google Chrome", "chrome.exe", "/silent /install", "Google Chrome");
-            await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms", "Mozilla Firefox");
-            await SmartInstall("Microsoft Edge", "edge.msi", "/quiet", "Microsoft Edge");
-            await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
-            await SmartInstall("Revo Uninstaller", "Revo.exe", "/S", "Revo Uninstaller");
-            await SmartInstall("IObit Driver Booster", "drv.exe", "/S /I", "Driver Booster");
-            await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
-            await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
-            await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
-            await SmartInstall("Sticky Notes", "sticky.exe", "Setup_SimpleStickyNotes.exe /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Sticky Notes");
+            if (selectedApps.Contains("Google Chrome"))
+                await SmartInstall("Google Chrome", "chrome.exe", "/silent /install", "Google Chrome");
+            if (selectedApps.Contains("Mozilla Firefox"))
+                await SmartInstall("Mozilla Firefox", "Firefox.exe", "-ms", "Mozilla Firefox");
+            if (selectedApps.Contains("Microsoft Edge"))
+                await SmartInstall("Microsoft Edge", "edge.msi", "/quiet", "Microsoft Edge");
+            if (selectedApps.Contains("WinRAR"))
+                await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
+            if (selectedApps.Contains("Revo Uninstaller Pro"))
+                await SmartInstall("Revo Uninstaller", "Revo.exe", "/S", "Revo Uninstaller");
+            if (selectedApps.Contains("IObit Driver Booster"))
+                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /I", "Driver Booster");
+            if (selectedApps.Contains("Notepad++"))
+                await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
+            if (selectedApps.Contains("Mozilla Thunderbird"))
+                await SmartInstall("Thunderbird", "Thunderbird.exe", "-ms -ma", "Mozilla Thunderbird");
+            if (selectedApps.Contains("Sticky Notes"))
+                await SmartInstall("Sticky Notes", "sticky.exe", "Setup_SimpleStickyNotes.exe /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Sticky Notes");
 
-            bool hasModernVc = IsAppInstalled("Visual C++ v14") ||
-                               IsAppInstalled("Visual C++ 2015") ||
-                               IsAppInstalled("Visual C++ 2015-2022") ||
-                               IsAppInstalled("Visual C++ 2015-2019");
-
-            bool has2013Vc = IsAppInstalled("Visual C++ 2013");
-
-            if (!hasModernVc || !has2013Vc)
+            if (selectedApps.Contains("Adobe Acrobat PRO DC"))
             {
-                Log("   [INIT] Preparing VC++ Runtimes...");
-                await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");
-            }
-            else
-            {
-                Log("   [SKIP] VC++ Runtimes (Recent versions) appear installed.");
-            }
-
-            if (!IsAppInstalled("Adobe Acrobat"))
-            {
-                await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll", "Adobe Acrobat PRO");
-            }
-            else
-            {
-                Log("   [SKIP] Adobe Acrobat is already installed.");
+                if (!IsAppInstalled("Adobe Acrobat"))
+                    await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll", "Adobe Acrobat PRO");
+                else
+                    Log("   [SKIP] Adobe Acrobat is already installed.");
             }
 
-            await InstallZipPackage("WPS.zip", "Setup.exe", "/S /D=\"C:\\Program Files\\WPS Office\"", "WPS Office");
-
-            Log("   [PATCH] Stopping WPS processes to unlock files...");
-            await Task.Run(() =>
+            if (selectedApps.Contains("WPS Office 2020"))
             {
-                string[] wpsProcs = ["wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate"];
-                foreach (var procName in wpsProcs)
+                await InstallZipPackage("WPS.zip", "Setup.exe", "/S /D=\"C:\\Program Files\\WPS Office\"", "WPS Office");
+
+                Log("   [PATCH] Stopping WPS processes to unlock files...");
+                await Task.Run(() =>
                 {
-                    try
+                    string[] wpsProcs = ["wps", "wpp", "et", "wpscenter", "wpscloudsvr", "wpspdf", "wccef", "wpsupdate"];
+                    foreach (var procName in wpsProcs)
                     {
-                        foreach (var p in Process.GetProcessesByName(procName)) p.Kill();
+                        try { foreach (var p in Process.GetProcessesByName(procName)) p.Kill(); } catch { }
                     }
-                    catch { }
-                }
-            });
-            await Task.Delay(2000);
+                });
+                await Task.Delay(2000);
 
-            string wpsExtractDir = Path.Combine(_assetsPath!, "WPS");
-            string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
+                string wpsExtractDir = Path.Combine(_assetsPath!, "WPS");
+                string authDllSource = Path.Combine(wpsExtractDir, "auth.dll");
 
-            if (!File.Exists(authDllSource))
-            {
-                var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
-                if (files.Length > 0) authDllSource = files[0];
-            }
-
-            if (File.Exists(authDllSource))
-            {
-                string wpsTargetDir = @"C:\Program Files\WPS Office";
-
-                if (Directory.Exists(wpsTargetDir))
+                if (!File.Exists(authDllSource))
                 {
-                    var office6Dirs = Directory.GetDirectories(wpsTargetDir, "office6", SearchOption.AllDirectories);
+                    var files = Directory.GetFiles(wpsExtractDir, "auth.dll", SearchOption.AllDirectories);
+                    if (files.Length > 0) authDllSource = files[0];
+                }
 
-                    if (office6Dirs.Length > 0)
+                EnsureWpsShortcutsForAllUsers();
+                if (File.Exists(authDllSource))
+                {
+                    string wpsTargetDir = @"C:\Program Files\WPS Office";
+                    if (Directory.Exists(wpsTargetDir))
                     {
-                        foreach (var dir in office6Dirs)
+                        var office6Dirs = Directory.GetDirectories(wpsTargetDir, "office6", SearchOption.AllDirectories);
+                        if (office6Dirs.Length > 0)
                         {
-                            string authDllDest = Path.Combine(dir, "auth.dll");
-                            try
+                            foreach (var dir in office6Dirs)
                             {
-                                File.Copy(authDllSource, authDllDest, true);
-                                Log($"   [SUCCESS] Patched: {authDllDest}");
+                                string authDllDest = Path.Combine(dir, "auth.dll");
+                                try
+                                {
+                                    File.Copy(authDllSource, authDllDest, true);
+                                    Log($"   [SUCCESS] Patched: {authDllDest}");
+                                }
+                                catch (Exception ex) { Log($"   [ERROR] Failed to patch {dir}: {ex.Message}"); }
                             }
-                            catch (Exception ex) { Log($"   [ERROR] Failed to patch {dir}: {ex.Message}"); }
+                        }
+                        else
+                        {
+                            Log($"   [WARN] 'office6' folder not found in {wpsTargetDir}");
                         }
                     }
                     else
                     {
-                        Log($"   [WARN] 'office6' folder not found in {wpsTargetDir}");
+                        Log($"   [WARN] WPS Install directory not found at: {wpsTargetDir}");
+                        Log("           (Installer might have failed or ignored the /D switch)");
                     }
                 }
                 else
                 {
-                    Log($"   [WARN] WPS Install directory not found at: {wpsTargetDir}");
-                    Log("           (Installer might have failed or ignored the /D switch)");
+                    Log("   [ERROR] auth.dll source not found in Assets/WPS.");
                 }
             }
-            else
+
+            if (selectedApps.Contains("Radmin Server (+ Config)"))
             {
-                Log("   [ERROR] auth.dll source not found in Assets/WPS.");
+                await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
+                await ApplyRadminServer();
             }
 
-            await ApplyRadminServer();
+            if (selectedApps.Contains("All VC++ Redistributables"))
+            {
+                bool hasModernVc = IsAppInstalled("Visual C++ v14") ||
+                                   IsAppInstalled("Visual C++ 2015") ||
+                                   IsAppInstalled("Visual C++ 2015-2022") ||
+                                   IsAppInstalled("Visual C++ 2015-2019");
+                bool has2013Vc = IsAppInstalled("Visual C++ 2013");
+
+                if (!hasModernVc || !has2013Vc)
+                {
+                    Log("   [INIT] Preparing VC++ Runtimes...");
+                    await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");
+                }
+                else
+                {
+                    Log("   [SKIP] VC++ Runtimes (Recent versions) appear installed.");
+                }
+            }
+
             await ApplyWallpaper();
 
             Log("   [CONFIG] Pinning Shortcuts to Taskbar...");
-            await PinToTaskbar("Google Chrome", "chrome.exe");
-            await PinToTaskbar("Mozilla Firefox", "firefox.exe");
-            await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
+            if (selectedApps.Contains("Google Chrome")) await PinToTaskbar("Google Chrome", "chrome.exe");
+            if (selectedApps.Contains("Mozilla Firefox")) await PinToTaskbar("Mozilla Firefox", "firefox.exe");
+            if (selectedApps.Contains("Mozilla Thunderbird")) await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
 
             Log("   [CONFIG] Setting Power Options (Sleep: Never)...");
             await RunProcessAsync("powercfg", "/change standby-timeout-ac 0", "Disable Sleep (AC)");
@@ -436,10 +510,10 @@ namespace PGInstaller.Viewmodel
         }
 
         private async Task<bool> RunCustomProcess(
-            ProcessStartInfo startInfo,
-            string description,
-            bool suppressError = false
-        )
+    ProcessStartInfo startInfo,
+    string description,
+    bool suppressError = false
+)
         {
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
             var tcs = new TaskCompletionSource<bool>();
@@ -476,8 +550,8 @@ namespace PGInstaller.Viewmodel
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                await tcs.Task;
-                return true;
+                bool success = await tcs.Task;
+                return success;
             }
             catch (Exception ex)
             {
@@ -486,7 +560,6 @@ namespace PGInstaller.Viewmodel
                 return false;
             }
         }
-
         private bool IsAppInstalled(string partialName)
         {
             string[] registryPaths =
@@ -537,6 +610,66 @@ namespace PGInstaller.Viewmodel
                 LogOutput += $"{message}{Environment.NewLine}";
             });
         }
+
+        private void RecordInstallResult(string appName, bool success, bool skipped = false)
+        {
+            if (skipped)
+            {
+                InstallSkipCount++;
+                Log($"   [SKIP] {appName}");
+            }
+            else if (success)
+            {
+                InstallSuccessCount++;
+                Log($"   [SUCCESS] {appName}");
+            }
+            else
+            {
+                InstallFailCount++;
+                Log($"   [FAILED] {appName}");
+            }
+        }
+        private void ShowInstallationSummary()
+        {
+            string msg = $"Installation Complete!\n\n" +
+                         $"✅ Succeeded: {InstallSuccessCount}\n" +
+                         $"❌ Failed: {InstallFailCount}\n" +
+                         $"⏭️ Skipped: {InstallSkipCount}\n\n" +
+                         $"Would you like to export the installation log?";
+
+            if (MessageBox.Show(msg, "PG Installer Summary", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            {
+                ExportLog();
+            }
+        }
+
+        private void ExportLog()
+        {
+            try
+            {
+                string logDir = @"C:\Assets\Logs";
+                Directory.CreateDirectory(logDir);
+                string fileName = $"{Environment.MachineName}_{DateTime.Now:yyyyMMdd_HHmmss}.log";
+                string filePath = Path.Combine(logDir, fileName);
+
+                File.WriteAllText(filePath, LogOutput);
+                MessageBox.Show($"Log exported successfully to:\n{filePath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to export log: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task RunParallelAsync(params Func<Task>[] tasks)
+        {
+            Log("   [PARALLEL] Executing independent tasks concurrently...");
+            var executionTasks = tasks.Select(t => t()).ToArray();
+            await Task.WhenAll(executionTasks);
+            Log("   [PARALLEL] Concurrent tasks completed.");
+        }
         #endregion
     }
+
+
 }

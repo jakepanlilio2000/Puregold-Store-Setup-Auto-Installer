@@ -1,13 +1,11 @@
-﻿using System.Threading.Tasks;
-
-namespace PGInstaller.Viewmodel
+﻿namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
-        private async Task InstallTreasuryPackage()
+        private async Task InstallTreasuryPackage(IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await InstallMMS();
+            await InstallCommonPackages(selectedApps);
+            if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
         }
     }
 }

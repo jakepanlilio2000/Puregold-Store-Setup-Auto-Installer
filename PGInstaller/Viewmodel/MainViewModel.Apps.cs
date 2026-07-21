@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Linq;
 
 namespace PGInstaller.Viewmodel
 {
@@ -14,17 +15,13 @@ namespace PGInstaller.Viewmodel
         {
             if (!IsAppInstalled("IBM Personal Communications"))
             {
-                await InstallZipPackage(
-                     "mms2.zip",
-                     "cwblaunch.exe",
-                     "",
-                     "iSeries Access"
-                );
+                await InstallZipPackage("mms2.zip", "cwblaunch.exe", "", "iSeries Access");
 
                 string mmsFileName = "MMS.ws";
                 string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
-                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                string mmsDest = Path.Combine(desktopPath, mmsFileName);
+  
+                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string mmsDest = Path.Combine(publicDesktop, mmsFileName);
 
                 if (File.Exists(mmsSource))
                 {
@@ -33,27 +30,15 @@ namespace PGInstaller.Viewmodel
                         try
                         {
                             File.Copy(mmsSource, mmsDest);
-                            Log($"   [COPY] Copied {mmsFileName} to Desktop.");
+                            Log($"   [COPY] Copied {mmsFileName} to All Users Desktop.");
                         }
-                        catch (Exception ex)
-                        {
-                            Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}");
-                        }
+                        catch (Exception ex) { Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}"); }
                     }
-                    else
-                    {
-                        Log($"   [SKIP] {mmsFileName} already exists on Desktop.");
-                    }
-                }
-                else
-                {
-                    Log($"   [WARN] {mmsFileName} not found in Assets root.");
                 }
 
                 string kmpFileName = "AS400.KMP";
                 string kmpSource = Path.Combine(_assetsPath!, kmpFileName);
                 string kmpDest = @"C:\AS400.KMP";
-
                 if (File.Exists(kmpSource))
                 {
                     try
@@ -61,20 +46,10 @@ namespace PGInstaller.Viewmodel
                         File.Copy(kmpSource, kmpDest, true);
                         Log($"   [COPY] Copied {kmpFileName} to C:\\.");
                     }
-                    catch (Exception ex)
-                    {
-                        Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    Log($"   [WARN] {kmpFileName} not found in Assets.");
+                    catch (Exception ex) { Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}"); }
                 }
             }
-            else
-            {
-                Log("   [SKIP] MMS (IBM Personal Communications) is already installed.");
-            }
+            else { Log("   [SKIP] MMS (IBM Personal Communications) is already installed."); }
         }
 
         private async Task ApplyRadminServer()
@@ -149,15 +124,14 @@ namespace PGInstaller.Viewmodel
         private async Task PinToTaskbar(string appName, string exeName)
         {
             string[] searchPaths = [
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
         Environment.GetFolderPath(Environment.SpecialFolder.Programs),
         @"C:\Program Files\Google\Chrome\Application",
         @"C:\Program Files\Mozilla Firefox",
         @"C:\Program Files\Mozilla Thunderbird"
-    ];
+            ];
 
             string? targetPath = null;
-
             foreach (var dir in searchPaths)
             {
                 if (Directory.Exists(dir))
@@ -166,9 +140,10 @@ namespace PGInstaller.Viewmodel
                     {
                         var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
                             .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
+                        var match = files.FirstOrDefault(f =>
+                            Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
+                            Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
 
-                        var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
-                                                              Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
                         if (match != null)
                         {
                             targetPath = match;
@@ -181,18 +156,68 @@ namespace PGInstaller.Viewmodel
 
             if (targetPath != null)
             {
-                Log($"   [CONFIG] Pinning {appName} to Taskbar...");
+                Log($"   [CONFIG] Attempting to pin {appName} to Taskbar...");
                 try
                 {
+                    string psScript = $@"
+                                            $appPath = '{targetPath}'
+                                            $shell = New-Object -ComObject Shell.Application
+                                            $folder = $shell.Namespace((Split-Path $appPath))
+                                            $item = $folder.ParseName((Split-Path $appPath -Leaf))
+                                            $verb = $item.Verbs() | Where-Object {{ $_.Name -match 'Pin to taskbar' }}
+            
+                                            if ($verb) {{
+                                                $verb.DoIt()
+                                                Write-Host 'SUCCESS: Pinned via COM'
+                                            }} else {{
+                                                # Fallback to LayoutModification.xml for Windows 11
+                                                $xmlPath = '$env:APPDATA\Microsoft\Windows\Shell\LayoutModification.xml'
+                                                $xmlContent = @'
+                                <?xml version=""1.0"" encoding=""utf-8""?>
+                                <LayoutModificationTemplate xmlns=""http://schemas.microsoft.com/Start/2014/LayoutModification"" xmlns:defaultlayout=""http://schemas.microsoft.com/Start/2014/FullDefaultLayout"" xmlns:start=""http://schemas.microsoft.com/Start/2014/StartLayout"" xmlns:taskbar=""http://schemas.microsoft.com/Start/2014/TaskbarLayout"" Version=""1"">
+                                  <CustomTaskbarLayoutCollection PinListPlacement=""Replace"">
+                                    <defaultlayout:TaskbarLayout>
+                                      <taskbar:TaskbarPinList>
+                                        <taskbar:DesktopApp DesktopApplicationLinkPath=""{targetPath}"" />
+                                      </taskbar:TaskbarPinList>
+                                    </defaultlayout:TaskbarLayout>
+                                  </CustomTaskbarLayoutCollection>
+                                </LayoutModificationTemplate>
+                                '@
+                                                Set-Content -Path $xmlPath -Value $xmlContent -Force
+                                                Write-Host 'SUCCESS: Pinned via LayoutModification.xml'
+                                            }}
+                                            ";
+
                     var startInfo = new ProcessStartInfo
                     {
-                        FileName = targetPath,
-                        Verb = "taskbarpin",
-                        UseShellExecute = true,
-                        CreateNoWindow = true
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
                     };
-                    Process.Start(startInfo);
-                    Log($"   [SUCCESS] Pinned {appName} to Taskbar.");
+
+                    bool success = await RunCustomProcess(startInfo, $"Pinning {appName}");
+
+                    if (!success)
+                    {
+                        Log($"   [WARN] Modern pinning failed. Trying legacy fallback for {appName}...");
+                        var legacyStartInfo = new ProcessStartInfo
+                        {
+                            FileName = targetPath,
+                            Verb = "taskbarpin",
+                            UseShellExecute = true,
+                            CreateNoWindow = true
+                        };
+                        Process.Start(legacyStartInfo);
+                        Log($"   [SUCCESS] Legacy pinning attempted for {appName}.");
+                    }
+                    else
+                    {
+                        Log($"   [SUCCESS] Pinned {appName} to Taskbar.");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -623,7 +648,7 @@ Require all granted
                 string pimsExe = Path.Combine(fmsDest, "pims.exe");
                 if (File.Exists(pimsExe))
                 {
-                    await CreateDesktopShortcut("PIMS", pimsExe);
+                    await CreateAllUsersShortcut("PIMS", pimsExe);
                     Log("   [SHORTCUT] Created Desktop Shortcut: PIMS");
                 }
                 else
@@ -825,7 +850,7 @@ Require all granted
 
                 if (File.Exists(exePath))
                 {
-                    await CreateDesktopShortcut("FSDM", exePath);
+                    await CreateAllUsersShortcut("FSDM", exePath, fsDestDir);
                     Log("   [SHORTCUT] Created Desktop Shortcut: FSDM");
                     try
                     {
@@ -888,8 +913,8 @@ Require all granted
 
             if (File.Exists(dbSource))
             {
-                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                string dbDest = Path.Combine(desktop, dbUpdater);
+                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string dbDest = Path.Combine(publicDesktop, dbUpdater);
                 try
                 {
                     File.Copy(dbSource, dbDest, true);
@@ -920,7 +945,7 @@ Require all granted
 
                 if (File.Exists(installedPath))
                 {
-                    await CreateDesktopShortcut("CorelDRAW X5", installedPath);
+                    await CreateAllUsersShortcut("CorelDRAW X5", installedPath);
                 }
                 else
                 {
@@ -954,7 +979,7 @@ Require all granted
                 }
                 if (File.Exists(exePath))
                 {
-                    await CreateDesktopShortcut("Illustrator CS6", exePath);
+                    await CreateAllUsersShortcut("Illustrator CS6", exePath, destDir);
                 }
             }
             else
@@ -984,7 +1009,7 @@ Require all granted
 
                 if (File.Exists(exePath))
                 {
-                    await CreateDesktopShortcut("Photoshop CS6", exePath);
+                    await CreateAllUsersShortcut("Photoshop CS6", exePath, destDir);
                 }
             }
             else
@@ -993,23 +1018,27 @@ Require all granted
             }
         }
 
-        private async Task CreateDesktopShortcut(string linkName, string targetPath)
+        private async Task CreateAllUsersShortcut(string linkName, string targetPath, string? workingDir = null)
         {
-            string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            string shortcutPath = Path.Combine(desktopPath, $"{linkName}.lnk");
+            string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+            string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
 
-            if (!File.Exists(shortcutPath))
+            string shortcutPath = Path.Combine(publicDesktop, $"{linkName}.lnk");
+            string startMenuPath = Path.Combine(publicStartMenu, $"{linkName}.lnk");
+
+            if (!File.Exists(shortcutPath) || !File.Exists(startMenuPath))
             {
-                Log($"   [SHORTCUT] Creating {linkName} on Desktop...");
-                string script =
-                    $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; $s.Save()";
+                Log($"   [SHORTCUT] Deploying '{linkName}' for All Users...");
+                string workDirArg = string.IsNullOrEmpty(workingDir) ? "" : $"; $s.WorkingDirectory = '{workingDir}'";
+                string script = $"$ws = New-Object -ComObject WScript.Shell; " +
+                                $"$s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; {workDirArg}; $s.Save(); " +
+                                $"$s2 = $ws.CreateShortcut('{startMenuPath}'); $s2.TargetPath = '{targetPath}'; {workDirArg}; $s2.Save();";
 
-                await RunProcessAsync(
-                     "powershell",
-                    $"-Command \"{script}\"",
-                    $"Creating Shortcut: {linkName}",
-                    true
-                );
+                await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", $"Creating All-Users Shortcut: {linkName}", true);
+            }
+            else
+            {
+                Log($"   [SKIP] Shortcut '{linkName}' already exists for All Users.");
             }
         }
 
@@ -1258,6 +1287,75 @@ Require all granted
             {
                 Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
+        }
+        private void EnsureWpsShortcutsForAllUsers()
+        {
+            try
+            {
+                string wpsInstallDir = @"C:\Program Files\WPS Office";
+                if (!Directory.Exists(wpsInstallDir)) return;
+
+                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "WPS Office");
+
+                if (!Directory.Exists(publicStartMenu)) Directory.CreateDirectory(publicStartMenu);
+
+                string[] wpsExeNames = { "wps.exe", "wpp.exe", "et.exe" };
+                var exePaths = Directory.GetFiles(wpsInstallDir, "*.exe", SearchOption.AllDirectories)
+                    .Where(f => wpsExeNames.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+                    .ToArray();
+
+                foreach (var exePath in exePaths)
+                {
+                    string name = Path.GetFileNameWithoutExtension(exePath);
+                    string friendlyName = name switch
+                    {
+                        "wps" => "WPS Writer",
+                        "wpp" => "WPS Presentation",
+                        "et" => "WPS Spreadsheets",
+                        _ => name
+                    };
+
+                    string desktopLnk = Path.Combine(publicDesktop, $"{friendlyName}.lnk");
+                    string startLnk = Path.Combine(publicStartMenu, $"{friendlyName}.lnk");
+
+                    if (!File.Exists(desktopLnk) || !File.Exists(startLnk))
+                    {
+                        string script = $"$ws = New-Object -ComObject WScript.Shell; " +
+                                        $"$s = $ws.CreateShortcut('{desktopLnk}'); $s.TargetPath = '{exePath}'; $s.WorkingDirectory = '{wpsInstallDir}'; $s.Save(); " +
+                                        $"$s2 = $ws.CreateShortcut('{startLnk}'); $s2.TargetPath = '{exePath}'; $s2.WorkingDirectory = '{wpsInstallDir}'; $s2.Save();";
+
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = "powershell.exe",
+                            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        using var p = Process.Start(psi);
+                        p?.WaitForExit(5000);
+                    }
+                }
+                Log("   [SUCCESS] WPS Office shortcuts ensured for All Users.");
+            }
+            catch (Exception ex)
+            {
+                Log($"   [WARN] Failed to ensure WPS shortcuts for all users: {ex.Message}");
+            }
+        }
+
+        private void CreateShortcutForWps(string shortcutPath, string targetPath, string workingDir)
+        {
+            string script = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; $s.WorkingDirectory = '{workingDir}'; $s.Save()";
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(5000);
         }
     }
 }

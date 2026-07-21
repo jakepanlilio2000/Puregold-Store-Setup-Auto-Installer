@@ -1,15 +1,13 @@
-﻿using System.Threading.Tasks;
-
-namespace PGInstaller.Viewmodel
+﻿namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
-        private async Task InstallHRDPackage()
+        private async Task InstallHRDPackage(IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "WampServer");
-            await InstallPIMS();
-            await InstallFSDM();
+            await InstallCommonPackages(selectedApps);
+            if (selectedApps.Contains("Wamp 1.7.2")) await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "WampServer");
+            if (selectedApps.Contains("PIMS")) await InstallPIMS();
+            if (selectedApps.Contains("FSDM")) await InstallFSDM();
         }
     }
 }

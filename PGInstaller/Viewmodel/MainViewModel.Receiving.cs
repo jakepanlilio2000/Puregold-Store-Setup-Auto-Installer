@@ -2,12 +2,13 @@
 {
     partial class MainViewModel
     {
-        private async Task InstallReceivingPackage()
+        private async Task InstallReceivingPackage(IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await InstallBartender();
-            await InstallMMS();
-            await InstallPIMS();
+            await InstallCommonPackages(selectedApps);
+
+            if (selectedApps.Contains("Bartender") || selectedApps.Contains("Bartender Drivers")) await InstallBartender();
+            if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
+            if (selectedApps.Contains("PIMS")) await InstallPIMS();
         }
     }
 }

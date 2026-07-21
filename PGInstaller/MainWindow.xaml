@@ -3,7 +3,6 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
     Title="PG-AIO Installer v1.4"
@@ -11,11 +10,9 @@
     Height="850"
     MinWidth="1000"
     MinHeight="700"
-    Background="{DynamicResource MaterialDesignPaper}"
-    FontFamily="{materialDesign:MaterialDesignFont}"
+    Background="{StaticResource BackgroundBrush}"
+    FontFamily="{StaticResource BaseFontFamily}"
     ResizeMode="CanResize"
-    Style="{StaticResource MaterialDesignWindow}"
-    TextElement.Foreground="{DynamicResource MaterialDesignBody}"
     WindowStartupLocation="CenterScreen"
     WindowState="Maximized"
     mc:Ignorable="d">
@@ -26,543 +23,687 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <SolidColorBrush x:Key="PGGreen" Color="#00843D" />
-        <SolidColorBrush x:Key="PGDarkGreen" Color="#005C2B" />
-        <SolidColorBrush x:Key="PGGold" Color="#F2C94C" />
-        <SolidColorBrush x:Key="PGRed" Color="#C0392B" />
-        <SolidColorBrush x:Key="PGPurple" Color="#8E44AD" />
-        <SolidColorBrush x:Key="PGBlue" Color="#2980B9" />
-        <SolidColorBrush x:Key="PGDarkBlue" Color="#34495E" />
-        <SolidColorBrush x:Key="PGTextDark" Color="#2C3E50" />
-        <SolidColorBrush x:Key="PGTextLight" Color="#7F8C8D" />
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!--  ==========================================  -->
+        <!--  LEFT SIDEBAR: Context & Control  -->
+        <!--  ==========================================  -->
         <Border
             Grid.Column="0"
-            Background="#FFFFFF"
-            BorderBrush="#E2E8F0"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="0,0,1,0">
             <DockPanel>
-                <StackPanel Margin="24,32,24,16" DockPanel.Dock="Top">
+                <!--  Top: Branding  -->
+                <StackPanel Margin="24,32,24,24" DockPanel.Dock="Top">
                     <StackPanel Orientation="Horizontal">
                         <Border
                             Width="44"
                             Height="44"
-                            Background="#00843D"
+                            Background="{StaticResource PrimaryBrush}"
                             CornerRadius="10">
-                            <materialDesign:PackIcon
-                                Width="26"
-                                Height="26"
+                            <TextBlock
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="24"
                                 Foreground="White"
-                                Kind="PackageVariant" />
+                                Text="&#xE7B8;" />
                         </Border>
                         <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock
                                 FontSize="20"
                                 FontWeight="Bold"
-                                Foreground="#0F172A"
+                                Foreground="{StaticResource TextPrimaryBrush}"
                                 Text="PG INSTALLER" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="v2.0 Zone 11" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
+
+                <!--  Bottom: Primary Action  -->
+                <StackPanel Margin="24,0,24,24" DockPanel.Dock="Bottom">
+                    <CheckBox
+                        Margin="0,0,0,16"
+                        Content="Create System Restore Point"
+                        IsChecked="{Binding IsRestorePointEnabled}"
+                        Style="{StaticResource ModernCheckBox}" />
+                    <Button
+                        Height="56"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding InstallCommand}"
+                        Content="START INSTALLATION"
+                        FontSize="16"
+                        Style="{StaticResource PrimaryButton}" />
+                </StackPanel>
+
+                <!--  Middle: Scrollable Context  -->
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="24,0,24,32">
+                    <StackPanel Margin="24,0,24,24">
+                        <!--  System Info  -->
                         <TextBlock
-                            Margin="0,16,0,8"
-                            Foreground="#64748B"
-                            Style="{StaticResource MaterialDesignOverlineTextBlock}"
-                            Text="CONFIGURATION" />
-                        <materialDesign:Card
-                            Margin="0,0,0,20"
+                            Margin="0,0,0,12"
+                            Style="{StaticResource OverlineStyle}"
+                            Text="SYSTEM INFO" />
+                        <Border
+                            Margin="0,0,0,24"
                             Padding="16"
-                            Background="#F8FAFC"
-                            BorderThickness="0"
-                            UniformCornerRadius="12">
+                            Style="{StaticResource GlassCard}">
                             <StackPanel>
-                                <ComboBox
-                                    materialDesign:HintAssist.Hint="Select Department"
-                                    ItemsSource="{Binding Departments}"
-                                    SelectedItem="{Binding SelectedDepartment}"
-                                    Style="{StaticResource MaterialDesignOutlinedComboBox}" />
-                            </StackPanel>
-                        </materialDesign:Card>
-
-                        <Expander
-                            HorizontalAlignment="Stretch"
-                            IsExpanded="True"
-                            Style="{StaticResource MaterialDesignExpander}">
-                            <Expander.Header>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource MaterialDesignSubtitle1TextBlock}"
-                                    Text="Network Settings" />
-                            </Expander.Header>
-                            <materialDesign:Card
-                                Margin="0,8,0,20"
-                                Padding="16"
-                                Background="#F8FAFC"
-                                BorderThickness="0"
-                                UniformCornerRadius="12">
-                                <StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="12" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox
-                                            Grid.Column="0"
-                                            materialDesign:HintAssist.Hint="IP Address"
-                                            Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                            Text="{Binding TargetIp}" />
-                                        <TextBox
-                                            Grid.Column="2"
-                                            materialDesign:HintAssist.Hint="Gateway"
-                                            Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                            Text="{Binding TargetGateway}" />
-                                    </Grid>
-                                    <TextBox
-                                        Margin="0,12,0,12"
-                                        materialDesign:HintAssist.Hint="Primary DNS"
-                                        Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                        Text="{Binding TargetDns}" />
-                                    <Button
-                                        HorizontalAlignment="Stretch"
-                                        materialDesign:ButtonAssist.CornerRadius="8"
-                                        Background="#F2C94C"
-                                        Command="{Binding ChangeIpCommand}"
-                                        Content="APPLY CONFIG"
-                                        Foreground="#0F172A"
-                                        Style="{StaticResource MaterialDesignRaisedButton}" />
+                                <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="16"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="&#xE77B;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        FontWeight="SemiBold"
+                                        Style="{StaticResource BodyStyle}"
+                                        Text="{Binding SelectedDepartment, StringFormat='Dept: {0}'}" />
                                 </StackPanel>
-                            </materialDesign:Card>
-                        </Expander>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="16"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="&#xE8D0;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource BodyStyle}"
+                                        Text="{Binding DomainStatus}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
+                        <!--  Department Selector  -->
                         <TextBlock
-                            Margin="0,16,0,8"
-                            Foreground="#64748B"
-                            Style="{StaticResource MaterialDesignOverlineTextBlock}"
-                            Text="INSTALL MANIFEST" />
-                        <materialDesign:Card
-                            MaxHeight="260"
+                            Margin="0,0,0,12"
+                            Style="{StaticResource OverlineStyle}"
+                            Text="DEPARTMENT" />
+                        <ComboBox
+                            Margin="0,0,0,24"
+                            ItemsSource="{Binding Departments}"
+                            SelectedItem="{Binding SelectedDepartment}"
+                            Style="{StaticResource ModernComboBox}" />
+                        <TextBox
+                            Margin="0,0,0,12"
+                            Style="{StaticResource ModernTextBox}"
+                            Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+
+                        <!--  Install Manifest  -->
+                        <TextBlock
+                            Margin="0,0,0,12"
+                            Style="{StaticResource OverlineStyle}"
+                            Text="INSTALLATION MANIFEST" />
+                        <Border
+                            MaxHeight="300"
                             Padding="0"
-                            Background="#F8FAFC"
-                            BorderThickness="0"
-                            UniformCornerRadius="12">
+                            Style="{StaticResource GlassCard}">
                             <ListBox
                                 Background="Transparent"
                                 BorderThickness="0"
-                                ItemsSource="{Binding PreviewList}"
-                                Style="{StaticResource MaterialDesignListBox}">
+                                ItemsSource="{Binding FilteredPreviewList}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="12,6" Orientation="Horizontal">
-                                            <materialDesign:PackIcon
-                                                Margin="0,0,10,0"
-                                                VerticalAlignment="Center"
-                                                Foreground="#00843D"
-                                                Kind="CheckCircle" />
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                Style="{StaticResource MaterialDesignBody2TextBlock}"
-                                                Text="{Binding}" />
-                                        </StackPanel>
+                                        <CheckBox
+                                            Margin="16,8"
+                                            Content="{Binding Name}"
+                                            IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                            Style="{StaticResource ModernCheckBox}" />
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </materialDesign:Card>
-
-                        <StackPanel Margin="0,28,0,0">
-                            <CheckBox
-                                Content="Create System Restore Point"
-                                IsChecked="{Binding IsRestorePointEnabled}"
-                                Style="{StaticResource MaterialDesignCheckBox}"
-                                ToolTip="Will be unchecked if System Restore is disabled in Windows." />
-
-                            <Button
-                                Height="60"
-                                Margin="0,20,0,0"
-                                HorizontalAlignment="Stretch"
-                                materialDesign:ButtonAssist.CornerRadius="12"
-                                Background="#00843D"
-                                Command="{Binding InstallCommand}"
-                                Content="START INSTALLATION"
-                                FontSize="16"
-                                FontWeight="Bold"
-                                Foreground="White"
-                                Style="{StaticResource MaterialDesignRaisedButton}">
-                                <Button.Effect>
-                                    <DropShadowEffect
-                                        BlurRadius="16"
-                                        Opacity="0.25"
-                                        ShadowDepth="6"
-                                        Color="#00843D" />
-                                </Button.Effect>
-                            </Button>
-                        </StackPanel>
-                        <StackPanel Margin="0,40,0,0" HorizontalAlignment="Center">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="11"
-                                Foreground="#64748B"
-                                Text="Ensure 'Assets' folder is present." />
-                            <TextBlock
-                                Margin="0,4,0,0"
-                                HorizontalAlignment="Center"
-                                FontSize="11"
-                                Foreground="#94A3B8"
-                                Text="Designed for Zone 11" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="11"
-                                Foreground="#94A3B8"
-                                Text="Developed by Jake Ashley Panlilio IT" />
-                        </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
         </Border>
+
+        <!--  ==========================================  -->
+        <!--  MAIN CONTENT: Dashboard & Modules  -->
+        <!--  ==========================================  -->
         <ScrollViewer
             Grid.Column="1"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="40,40,40,40">
-                <StackPanel Margin="0,0,0,32">
-                    <TextBlock
-                        FontWeight="Bold"
-                        Style="{StaticResource MaterialDesignHeadline4TextBlock}"
-                        Text="Dashboard" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        Foreground="#64748B"
-                        Style="{StaticResource MaterialDesignSubtitle1TextBlock}"
-                        Text="Manage system maintenance, recovery, and tools." />
-                </StackPanel>
+            <StackPanel Margin="40">
+                <!--  Header  -->
+                <TextBlock Style="{StaticResource PageTitleStyle}" Text="Dashboard" />
                 <TextBlock
-                    Margin="0,0,0,12"
-                    Foreground="#64748B"
-                    Style="{StaticResource MaterialDesignOverlineTextBlock}"
-                    Text="QUICK MAINTENANCE" />
-                <materialDesign:Card
-                    Margin="0,0,0,32"
-                    Padding="24"
-                    UniformCornerRadius="16">
-                    <WrapPanel>
-                        <Button
-                            Width="160"
-                            Height="120"
-                            Margin="0,0,16,16"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#FEF2F2"
-                            Command="{Binding RunDefenderCommand}"
-                            Foreground="#991B1B"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    HorizontalAlignment="Center"
-                                    Kind="ShieldOff" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    HorizontalAlignment="Center"
-                                    FontSize="14"
-                                    FontWeight="Bold"
-                                    Text="No Defender" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            Width="160"
-                            Height="120"
-                            Margin="0,0,16,16"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#F5F3FF"
-                            Command="{Binding RunDebloatCommand}"
-                            Foreground="#5B21B6"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    HorizontalAlignment="Center"
-                                    Kind="RocketLaunch" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    HorizontalAlignment="Center"
-                                    FontSize="14"
-                                    FontWeight="Bold"
-                                    Text="Debloat" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            Width="160"
-                            Height="120"
-                            Margin="0,0,16,16"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#EFF6FF"
-                            Command="{Binding RunActivatorCommand}"
-                            Foreground="#1E40AF"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    HorizontalAlignment="Center"
-                                    Kind="Key" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    HorizontalAlignment="Center"
-                                    FontSize="14"
-                                    FontWeight="Bold"
-                                    Text="Activate" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            Width="160"
-                            Height="120"
-                            Margin="0,0,16,16"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#F0FDF4"
-                            Command="{Binding RunBackupCommand}"
-                            Foreground="#166534"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    HorizontalAlignment="Center"
-                                    Kind="ContentSaveOutline" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    HorizontalAlignment="Center"
-                                    FontSize="14"
-                                    FontWeight="Bold"
-                                    Text="Backup" />
-                            </StackPanel>
-                        </Button>
-                    </WrapPanel>
-                </materialDesign:Card>
-                <TextBlock
-                    Margin="0,0,0,12"
-                    Foreground="#64748B"
-                    Style="{StaticResource MaterialDesignOverlineTextBlock}"
-                    Text="RECOVERY CONSOLE" />
-                <materialDesign:Card
-                    Margin="0,0,0,32"
-                    Padding="24"
-                    UniformCornerRadius="16">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                    Margin="0,8,0,32"
+                    Style="{StaticResource CaptionStyle}"
+                    Text="Manage system maintenance, recovery, and deployment tools." />
 
-                        <Button
-                            Grid.Column="0"
-                            Height="100"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#FFEDD5"
-                            Command="{Binding RunSystemRestoreCommand}"
-                            Foreground="#9A3412"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    VerticalAlignment="Center"
-                                    Kind="History" />
-                                <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock
-                                        FontSize="16"
-                                        FontWeight="Bold"
-                                        Text="System Restore" />
-                                    <TextBlock
-                                        FontSize="12"
-                                        Opacity="0.8"
-                                        Text="Revert to an earlier point" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
-
-                        <Button
-                            Grid.Column="2"
-                            Height="100"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Background="#FEE2E2"
-                            Command="{Binding RunImageRecoveryCommand}"
-                            Foreground="#991B1B"
-                            Style="{StaticResource MaterialDesignRaisedButton}">
-                            <StackPanel
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="32"
-                                    Height="32"
-                                    VerticalAlignment="Center"
-                                    Kind="DiscAlert" />
-                                <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock
-                                        FontSize="16"
-                                        FontWeight="Bold"
-                                        Text="Image Recovery" />
-                                    <TextBlock
-                                        FontSize="12"
-                                        Opacity="0.8"
-                                        Text="Reboot to WinRE" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                </materialDesign:Card>
-                <TextBlock
-                    Margin="0,0,0,12"
-                    Foreground="#64748B"
-                    Style="{StaticResource MaterialDesignOverlineTextBlock}"
-                    Text="SYSTEM TOOLS" />
+                <!--  KPI Cards  -->
                 <Grid Margin="0,0,0,32">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="16" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <materialDesign:Card
-                        Grid.Column="0"
-                        Padding="24"
-                        UniformCornerRadius="16">
+
+                    <Border Grid.Column="0" Style="{StaticResource GlassCard}">
                         <StackPanel>
-                            <StackPanel Margin="0,0,0,16" Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="24"
-                                    Height="24"
-                                    VerticalAlignment="Center"
-                                    Foreground="#00843D"
-                                    Kind="ShieldAccount" />
-                                <TextBlock
-                                    Margin="8,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontWeight="Bold"
-                                    Style="{StaticResource MaterialDesignSubtitle1TextBlock}"
-                                    Text="Antivirus Protection" />
-                            </StackPanel>
-                            <ComboBox
-                                Margin="0,0,0,16"
-                                materialDesign:HintAssist.Hint="Select AV Solution"
-                                ItemsSource="{Binding AntivirusList}"
-                                SelectedItem="{Binding SelectedAntivirus}"
-                                Style="{StaticResource MaterialDesignOutlinedComboBox}" />
-                            <Button
-                                HorizontalAlignment="Stretch"
-                                materialDesign:ButtonAssist.CornerRadius="8"
-                                Command="{Binding InstallAntivirusCommand}"
-                                Content="INSTALL AV"
-                                Style="{StaticResource MaterialDesignRaisedButton}" />
+                            <TextBlock Style="{StaticResource OverlineStyle}" Text="MACHINE STATUS" />
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                FontSize="24"
+                                FontWeight="Bold"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="Ready" />
                         </StackPanel>
-                    </materialDesign:Card>
-                    <materialDesign:Card
-                        Grid.Column="2"
-                        Padding="24"
-                        UniformCornerRadius="16">
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource GlassCard}">
                         <StackPanel>
-                            <StackPanel Margin="0,0,0,16" Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="24"
-                                    Height="24"
-                                    VerticalAlignment="Center"
-                                    Foreground="#2980B9"
-                                    Kind="Pill" />
-                                <TextBlock
-                                    Margin="8,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontWeight="Bold"
-                                    Style="{StaticResource MaterialDesignSubtitle1TextBlock}"
-                                    Text="Medicine Cabinet" />
-                            </StackPanel>
-                            <ComboBox
-                                Margin="0,0,0,16"
-                                materialDesign:HintAssist.Hint="Select Tool"
-                                ItemsSource="{Binding MedicineList}"
-                                SelectedItem="{Binding SelectedMedicineName}"
-                                Style="{StaticResource MaterialDesignOutlinedComboBox}" />
-                            <Button
-                                HorizontalAlignment="Stretch"
-                                materialDesign:ButtonAssist.CornerRadius="8"
-                                Background="#2C3E50"
-                                Command="{Binding RunMedicineCommand}"
-                                Content="LAUNCH TOOL"
-                                Foreground="White"
-                                Style="{StaticResource MaterialDesignRaisedButton}" />
+                            <TextBlock Style="{StaticResource OverlineStyle}" Text="DOMAIN STATUS" />
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                FontSize="24"
+                                FontWeight="Bold"
+                                Foreground="{StaticResource GoldBrush}"
+                                Text="Pending" />
                         </StackPanel>
-                    </materialDesign:Card>
+                    </Border>
+                    <Border Grid.Column="4" Style="{StaticResource GlassCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource OverlineStyle}" Text="SELECTED DEPT" />
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                FontSize="24"
+                                FontWeight="Bold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{Binding SelectedDepartment}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="6" Style="{StaticResource GlassCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource OverlineStyle}" Text="PENDING TASKS" />
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                FontSize="24"
+                                FontWeight="Bold"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="{Binding PendingTasksCount}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                Style="{StaticResource CaptionStyle}"
+                                Text="Selected Apps" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
+
+                <!--  Network Configuration  -->
                 <TextBlock
                     Margin="0,0,0,12"
-                    Foreground="#64748B"
-                    Style="{StaticResource MaterialDesignOverlineTextBlock}"
+                    Style="{StaticResource OverlineStyle}"
+                    Text="NETWORK CONFIGURATION" />
+                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock
+                                    Margin="0,0,0,6"
+                                    Style="{StaticResource CaptionStyle}"
+                                    Text="IP Address" />
+                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetIp}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock
+                                    Margin="0,0,0,6"
+                                    Style="{StaticResource CaptionStyle}"
+                                    Text="Gateway" />
+                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetGateway}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock
+                                    Margin="0,0,0,6"
+                                    Style="{StaticResource CaptionStyle}"
+                                    Text="Primary DNS" />
+                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetDns}" />
+                            </StackPanel>
+                        </Grid>
+                        <Button
+                            Margin="0,20,0,0"
+                            HorizontalAlignment="Left"
+                            Command="{Binding ChangeIpCommand}"
+                            Content="APPLY CONFIG"
+                            Style="{StaticResource SecondaryButton}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  Quick Actions  -->
+                <TextBlock
+                    Margin="0,0,0,12"
+                    Style="{StaticResource OverlineStyle}"
+                    Text="QUICK ACTIONS" />
+                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
+                    <WrapPanel>
+                        <Button
+                            Width="160"
+                            Height="100"
+                            Margin="0,0,16,16"
+                            Command="{Binding RunDefenderCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource DangerBrush}"
+                                    Text="&#xE8D0;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="No Defender" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Width="160"
+                            Height="100"
+                            Margin="0,0,16,16"
+                            Command="{Binding RunDebloatCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="&#xE7BA;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="Debloat" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Width="160"
+                            Height="100"
+                            Margin="0,0,16,16"
+                            Command="{Binding RunActivatorCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource GoldBrush}"
+                                    Text="&#xE785;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="Activate" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Width="160"
+                            Height="100"
+                            Margin="0,0,16,16"
+                            Command="{Binding RunBackupCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="&#xE74E;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="Backup" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
+                </Border>
+
+                <!--  Recovery & Tools  -->
+                <Grid Margin="0,0,0,32">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Recovery Console  -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock
+                            Margin="0,0,0,12"
+                            Style="{StaticResource OverlineStyle}"
+                            Text="RECOVERY CONSOLE" />
+                        <Border Style="{StaticResource GlassCard}">
+                            <StackPanel>
+                                <Button
+                                    Height="80"
+                                    Margin="0,0,0,12"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding RunSystemRestoreCommand}"
+                                    Style="{StaticResource SecondaryButton}">
+                                    <StackPanel
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="24"
+                                            Foreground="{StaticResource PrimaryBrush}"
+                                            Text="&#xE81C;" />
+                                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="System Restore" />
+                                            <TextBlock Style="{StaticResource CaptionStyle}" Text="Revert to an earlier point" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    Height="80"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding RunImageRecoveryCommand}"
+                                    Style="{StaticResource DangerButton}">
+                                    <StackPanel
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="24"
+                                            Foreground="White"
+                                            Text="&#xE777;" />
+                                        <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Foreground="White"
+                                                Text="Image Recovery" />
+                                            <TextBlock Foreground="#FFC0C0" Text="Reboot to WinRE" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!--  Software Tools  -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock
+                            Margin="0,0,0,12"
+                            Style="{StaticResource OverlineStyle}"
+                            Text="SOFTWARE TOOLS" />
+                        <Border Style="{StaticResource GlassCard}">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="0,0,0,12"
+                                    Style="{StaticResource CardTitleStyle}"
+                                    Text="Antivirus Protection" />
+                                <ComboBox
+                                    Margin="0,0,0,12"
+                                    ItemsSource="{Binding AntivirusList}"
+                                    SelectedItem="{Binding SelectedAntivirus}"
+                                    Style="{StaticResource ModernComboBox}" />
+                                <Button
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding InstallAntivirusCommand}"
+                                    Content="INSTALL AV"
+                                    Style="{StaticResource PrimaryButton}" />
+
+                                <Separator Margin="0,20" Background="{StaticResource BorderBrush}" />
+
+                                <TextBlock
+                                    Margin="0,0,0,12"
+                                    Style="{StaticResource CardTitleStyle}"
+                                    Text="Medicine Cabinet" />
+                                <ComboBox
+                                    Margin="0,0,0,12"
+                                    ItemsSource="{Binding MedicineList}"
+                                    SelectedItem="{Binding SelectedMedicineName}"
+                                    Style="{StaticResource ModernComboBox}" />
+                                <Button
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding RunMedicineCommand}"
+                                    Content="LAUNCH TOOL"
+                                    Style="{StaticResource SecondaryButton}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!--  ==========================================  -->
+                <!--  Bloatware & Uninstall Manager  -->
+                <!--  ==========================================  -->
+                <TextBlock
+                    Margin="0,0,0,12"
+                    Style="{StaticResource OverlineStyle}"
+                    Text="APP UNINSTALLER &amp; BLOATWARE" />
+                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel
+                            Grid.Row="0"
+                            Margin="0,0,0,16"
+                            Orientation="Horizontal">
+                            <Button
+                                Margin="0,0,12,0"
+                                Command="{Binding ScanBloatwareCommand}"
+                                Content="SCAN INSTALLED APPS"
+                                Style="{StaticResource SecondaryButton}" />
+                            <Button
+                                Command="{Binding UninstallSelectedBloatwareCommand}"
+                                Content="UNINSTALL SELECTED"
+                                Style="{StaticResource DangerButton}" />
+                            <ProgressBar
+                                Width="100"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                IsIndeterminate="True"
+                                Visibility="{Binding IsScanningBloatware, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </StackPanel>
+
+                        <Border
+                            Grid.Row="1"
+                            MaxHeight="250"
+                            Background="{StaticResource SurfaceVariantBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <ListBox
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemsSource="{Binding BloatwareList}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox
+                                            Margin="8,4"
+                                            IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                            Style="{StaticResource ModernCheckBox}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                                    Text="{Binding DisplayName}" />
+                                                <Border
+                                                    Margin="8,0,0,0"
+                                                    Padding="6,2"
+                                                    Background="{StaticResource DangerBrush}"
+                                                    CornerRadius="4"
+                                                    Visibility="{Binding IsKnownBloat, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10"
+                                                        FontWeight="Bold"
+                                                        Foreground="White"
+                                                        Text="BLOAT" />
+                                                </Border>
+                                                <Border
+                                                    Margin="8,0,0,0"
+                                                    Padding="6,2"
+                                                    Background="{StaticResource GoldBrush}"
+                                                    CornerRadius="4"
+                                                    Visibility="{Binding IsUwp, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10"
+                                                        FontWeight="Bold"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="UWP" />
+                                                </Border>
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+
+                        <TextBlock
+                            Grid.Row="2"
+                            Margin="0,12,0,0"
+                            Style="{StaticResource CaptionStyle}"
+                            Text="Tip: Known bloatware is auto-selected and highlighted in red. Review carefully before uninstalling." />
+                    </Grid>
+                </Border>
+
+                <!--  Live Terminal  -->
+                <TextBlock
+                    Margin="0,0,0,12"
+                    Style="{StaticResource OverlineStyle}"
                     Text="LIVE TERMINAL" />
-                <materialDesign:Card
-                    Padding="0"
-                    Background="#0F172A"
-                    BorderThickness="0"
-                    ClipToBounds="True"
-                    UniformCornerRadius="16">
-                    <Grid Height="350">
+                <Border Height="350" Style="{StaticResource TerminalCard}">
+                    <Grid>
                         <TextBox
                             Padding="24"
-                            materialDesign:TextFieldAssist.UnderlineBrush="Transparent"
                             Background="Transparent"
                             BorderThickness="0"
-                            CaretBrush="#A3E635"
                             FontFamily="Consolas"
                             FontSize="13"
                             Foreground="#A3E635"
                             IsReadOnly="True"
-                            Style="{StaticResource MaterialDesignTextBox}"
                             Text="{Binding LogOutput}"
                             TextChanged="Terminal_TextChanged"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto" />
+
+                        <!--  Busy Overlay  -->
                         <Border
-                            Background="#CC00381a"
-                            CornerRadius="16"
+                            Background="#CC0F172A"
+                            CornerRadius="12"
                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <materialDesign:PackIcon
-                                    Width="48"
-                                    Height="48"
-                                    HorizontalAlignment="Center"
-                                    Foreground="#A3E635"
-                                    Kind="ProgressClock" />
+                            <StackPanel
+                                MaxWidth="500"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                                <!--  Animated Icon  -->
                                 <TextBlock
-                                    Margin="0,16,0,0"
                                     HorizontalAlignment="Center"
-                                    FontSize="16"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="48"
+                                    Foreground="#A3E635"
+                                    Text="&#xE7BA;">
+                                    <TextBlock.Triggers>
+                                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation
+                                                        AutoReverse="True"
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        From="1"
+                                                        To="0.3"
+                                                        Duration="0:0:1" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </TextBlock.Triggers>
+                                </TextBlock>
+
+                                <!--  Dynamic Task Description  -->
+                                <TextBlock
+                                    Margin="0,20,0,8"
+                                    HorizontalAlignment="Center"
+                                    FontSize="18"
                                     FontWeight="Bold"
                                     Foreground="White"
-                                    Text="PROCESSING REQUEST..." />
+                                    Text="{Binding CurrentTaskDescription}"
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap" />
+
+                                <!--  Step Counter  -->
+                                <TextBlock
+                                    Margin="0,0,0,16"
+                                    HorizontalAlignment="Center"
+                                    FontSize="14"
+                                    Foreground="#94A3B8">
+                                    <Run Text="Step " />
+                                    <Run Text="{Binding CurrentStep, Mode=OneWay}" />
+                                    <Run Text=" of " />
+                                    <Run Text="{Binding TotalSteps, Mode=OneWay}" />
+                                </TextBlock>
+
+                                <!--  Determinate Progress Bar  -->
                                 <ProgressBar
-                                    Width="300"
-                                    Height="6"
-                                    Margin="0,16,0,0"
+                                    Width="400"
+                                    Height="8"
                                     Background="#1E293B"
-                                    Foreground="#F2C94C"
-                                    IsIndeterminate="True" />
+                                    BorderThickness="0"
+                                    Foreground="{StaticResource GoldBrush}"
+                                    Maximum="100"
+                                    Style="{StaticResource ModernProgressBar}"
+                                    Value="{Binding ProgressPercentage}" />
                             </StackPanel>
                         </Border>
                     </Grid>
-                </materialDesign:Card>
+                </Border>
+
+                <!--  Footer  -->
+                <StackPanel Margin="0,40,0,0" HorizontalAlignment="Center">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource CaptionStyle}"
+                        Text="Ensure 'Assets' folder is present." />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource CaptionStyle}"
+                        Text="Designed for Zone 11" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource CaptionStyle}"
+                        Text="Developed by Jake Ashley Panlilio IT" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>

@@ -21,7 +21,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="MaterialDesignThemes" Version="5.3.2" />
+		<PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.10" />
+		<PackageReference Include="System.Management" Version="10.0.10" />
 	</ItemGroup>
 
 	<ItemGroup>

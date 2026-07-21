@@ -2,26 +2,38 @@
 {
     partial class MainViewModel
     {
-        private async Task InstallStoreOperationsPackage(string role)
+        private async Task InstallStoreOperationsPackage(string role, IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC");
-            await InstallMMS();
-            await InstallPIMS();
+            await InstallCommonPackages(selectedApps);
+
+            var parallelTasks = new List<Func<Task>>();
+
+            if (selectedApps.Contains("VLC Media Player"))
+                parallelTasks.Add(() => SmartInstall("VLC Media Player", "vlc.exe", "/S", "VLC"));
+
+            if (role == "Manager" && selectedApps.Contains("Zoom"))
+                parallelTasks.Add(() => SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom"));
+
+            if (parallelTasks.Any())
+            {
+                Log("   [PARALLEL] Executing independent Store Operations tasks concurrently...");
+                await Task.WhenAll(parallelTasks.Select(t => t()));
+                Log("   [PARALLEL] Concurrent Store Operations tasks completed.");
+            }
+
+            if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
+            if (selectedApps.Contains("PIMS")) await InstallPIMS(); 
 
             switch (role)
             {
                 case "Manager":
-                    await SmartInstall("Zoom", "ZoomInstaller.exe", "/silent", "Zoom");
                     break;
-
                 case "Customer Service":
-                    await InstallBartender();
+                    if (selectedApps.Contains("Bartender")) await InstallBartender();
                     break;
-
                 case "Selling":
+                    if (selectedApps.Contains("Bartender")) await InstallBartender();
                     break;
-
                 case "HBC":
                     break;
             }

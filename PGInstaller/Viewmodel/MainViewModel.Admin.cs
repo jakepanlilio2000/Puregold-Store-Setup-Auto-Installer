@@ -2,11 +2,11 @@
 {
     partial class MainViewModel
     {
-        private async Task InstallAdminPackage()
+        private async Task InstallAdminPackage(IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await InstallMMS();
-            await InstallPIMS();
+            await InstallCommonPackages(selectedApps);
+            if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
+            if (selectedApps.Contains("PIMS")) await InstallPIMS();
         }
     }
 }

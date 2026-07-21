@@ -5,93 +5,70 @@
         partial void OnSelectedDepartmentChanged(string? value)
         {
             PreviewList.Clear();
-            if (string.IsNullOrEmpty(value))
-                return;
+            if (string.IsNullOrEmpty(value)) return;
 
-            var commonApps = new List<string>
+            var allApps = new List<string>
             {
-                "Google Chrome",
-                "Mozilla Firefox",
-                "WinRAR",
-                "Notepad++",
-                "Mozilla Thunderbird",
-                "Oracle Java Runtime",
-                "All VC++ Redistributables",
-                "WPS Office 2020",
-                "Revo Uninstaller Pro",
-                "Adobe Acrobat PRO DC",
-                "Sticky Notes"
+                "Google Chrome", "Mozilla Firefox", "Microsoft Edge", "WinRAR", "Notepad++",
+                "Mozilla Thunderbird", "Oracle Java Runtime", "All VC++ Redistributables",
+                "WPS Office 2020", "Revo Uninstaller Pro", "Adobe Acrobat PRO DC", "Sticky Notes",
+                "IObit Driver Booster", "Radmin Server (+ Config)", "Zoom", "Advanced IP Scanner",
+                "PITK", "A&VGW", "PuTTY (+ Registry Settings)", "WinSCP (+ Config)", "Radmin Viewer",
+                "PIMS", "MMS (PCOMM)", "Chrome Bookmarks (CBM)", ".NET Framework 3.5", "FSDM",
+                "Wamp 1.7.2", "Wampserver 3.4.0", "Inventory Tools", "Variance", "Coreldraw Graphics X5",
+                "Photoshop CS6", "Illustrator CS6", "Bartender", "Bartender Drivers", "Java Oracle",
+                "VLC Media Player"
             };
 
-            foreach (var app in commonApps)
-                PreviewList.Add(app);
+            var defaultAppsForDept = new List<string>
+            {
+                "Google Chrome", "Mozilla Firefox", "WinRAR", "Notepad++", "Mozilla Thunderbird",
+                "Oracle Java Runtime", "All VC++ Redistributables", "WPS Office 2020", "Revo Uninstaller Pro",
+                "Adobe Acrobat PRO DC", "Sticky Notes"
+            };
 
             switch (value)
             {
                 case "IT":
-                    PreviewList.Add("Zoom");
-                    PreviewList.Add("Advanced IP Scanner");
-                    PreviewList.Add("PuTTY (+ Registry Settings)");
-                    PreviewList.Add("Radmin Server (+ Config)");
-                    PreviewList.Add("WinSCP (+ Config)");
-                    PreviewList.Add("PIMS");
-                    PreviewList.Add("MMS (PCOMM)");
+                    defaultAppsForDept.AddRange(new[] { "Zoom", "Advanced IP Scanner", "PITK", "PuTTY (+ Registry Settings)", "Radmin Server (+ Config)", "WinSCP (+ Config)", "Radmin Viewer", "PIMS", "MMS (PCOMM)", "Chrome Bookmarks (CBM)", "A&VGW" });
                     break;
                 case "HRD":
-                    PreviewList.Insert(0, ".NET Framework 3.5");
-                    PreviewList.Add("FSDM");
-                    PreviewList.Add("Wamp 1.7.2");
+                    defaultAppsForDept.AddRange(new[] { ".NET Framework 3.5", "FSDM", "Wamp 1.7.2" });
                     break;
                 case "ICD":
-                    PreviewList.Add("PIMS");
-                    PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("Wampserver 3.4.0");
-                    PreviewList.Add("Inventory Tools");
-                    PreviewList.Add("Variance");
+                    defaultAppsForDept.AddRange(new[] { "PIMS", "MMS (PCOMM)", "Wampserver 3.4.0", "Inventory Tools", "Variance" });
                     break;
                 case "Payables":
-                    PreviewList.Add("MMS (PCOMM)");
-                    break;
                 case "Admin":
-                    PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("PIMS");
-                    break;
                 case "Audit":
-                    PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("PIMS");
+                    defaultAppsForDept.AddRange(new[] { "MMS (PCOMM)", "PIMS" });
                     break;
                 case "Creative":
-                    PreviewList.Add("Coreldraw Graphics X5");
-                    PreviewList.Add("Photoshop CS6");
-                    PreviewList.Add("Illustrator CS6");
+                    defaultAppsForDept.AddRange(new[] { "Coreldraw Graphics X5", "Photoshop CS6", "Illustrator CS6" });
                     break;
                 case "Receiving":
-                    PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("Bartender");
-                    PreviewList.Add("Bartender Drivers");
+                    defaultAppsForDept.AddRange(new[] { "MMS (PCOMM)", "Bartender", "Bartender Drivers" });
                     break;
                 case "Treasury":
-                    PreviewList.Add("Java Oracle");
+                    defaultAppsForDept.AddRange(new[] { "Java Oracle" });
                     break;
                 case "Store Operations (Manager)":
-                    PreviewList.Add("VLC Media Player");
-                    PreviewList.Add("PIMS");
-                    PreviewList.Add("MMS (PCOMM)");
+                    defaultAppsForDept.AddRange(new[] { "VLC Media Player", "PIMS", "MMS (PCOMM)", "Zoom" });
                     break;
                 case "Store Operations (Customer Service)":
-                    PreviewList.Add("Zoom");
+                    defaultAppsForDept.AddRange(new[] { "Zoom", "Bartender" });
                     break;
                 case "Store Operations (Selling)":
-                    PreviewList.Add("PIMS");
-                    PreviewList.Add("MMS (PCOMM)");
-                    PreviewList.Add("Bartender");
+                    defaultAppsForDept.AddRange(new[] { "PIMS", "MMS (PCOMM)", "Bartender" });
                     break;
                 case "Store Operations (HBC)":
-                    PreviewList.Add("PIMS");
-                    PreviewList.Add("MMS (PCOMM)");
+                    defaultAppsForDept.AddRange(new[] { "PIMS", "MMS (PCOMM)" });
                     break;
-                default:
-                    break;
+            }
+
+            foreach (var app in allApps)
+            {
+                PreviewList.Add(new InstallAppItem(app, defaultAppsForDept.Contains(app)));
             }
         }
     }

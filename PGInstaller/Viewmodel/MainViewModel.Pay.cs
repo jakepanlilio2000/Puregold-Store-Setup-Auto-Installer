@@ -2,10 +2,10 @@
 {
     partial class MainViewModel
     {
-        private async Task InstallPayablesPackage()
+        private async Task InstallPayablesPackage(IEnumerable<string> selectedApps)
         {
-            await InstallCommonPackages();
-            await InstallMMS();
+            await InstallCommonPackages(selectedApps);
+            if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
         }
     }
 }
