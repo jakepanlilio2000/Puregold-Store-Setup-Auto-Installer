@@ -110,7 +110,31 @@
                                         Margin="8,0,0,0"
                                         FontWeight="SemiBold"
                                         Style="{StaticResource BodyStyle}"
-                                        Text="{Binding SelectedDepartment, StringFormat='Dept: {0}'}" />
+                                        Text="{Binding PcName}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="16"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="&#xE950;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource CaptionStyle}"
+                                        Text="{Binding CpuInfo}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="16"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="&#xE958;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource CaptionStyle}"
+                                        Text="{Binding RamInfo}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
@@ -121,8 +145,8 @@
                                         Text="&#xE8D0;" />
                                     <TextBlock
                                         Margin="8,0,0,0"
-                                        Style="{StaticResource BodyStyle}"
-                                        Text="{Binding DomainStatus}" />
+                                        Style="{StaticResource CaptionStyle}"
+                                        Text="{Binding OsVersion}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -221,7 +245,7 @@
                                 FontSize="24"
                                 FontWeight="Bold"
                                 Foreground="{StaticResource GoldBrush}"
-                                Text="Pending" />
+                                Text="{Binding DomainStatus}" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="4" Style="{StaticResource GlassCard}">

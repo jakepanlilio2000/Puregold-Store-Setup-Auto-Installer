@@ -11,8 +11,18 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" SnapsToDevicePixels="True">
-                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    <Border
+                        x:Name="border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <ScrollViewer
+                            x:Name="PART_ContentHost"
+                            Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden"
+                            VerticalScrollBarVisibility="Hidden" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -40,25 +50,65 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid>
-                        <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" SnapsToDevicePixels="True">
+                        <Border
+                            x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8"
+                            SnapsToDevicePixels="True">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="32" />
                                 </Grid.ColumnDefinitions>
-                                <ContentPresenter Name="ContentSite" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="12,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
-                                <TextBlock Grid.Column="1" Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" />
+                                <ContentPresenter
+                                    Name="ContentSite"
+                                    Margin="12,0,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    IsHitTestVisible="False" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    IsHitTestVisible="False"
+                                    Text="&#xE70D;" />
                             </Grid>
                         </Border>
-                        <ToggleButton Name="ToggleButton" Grid.ColumnSpan="2" Focusable="false" IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press">
+                        <ToggleButton
+                            Name="ToggleButton"
+                            Grid.ColumnSpan="2"
+                            ClickMode="Press"
+                            Focusable="false"
+                            IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
                                     <Border Background="Transparent" />
                                 </ControlTemplate>
-                                </ToggleButton.Template>
+                            </ToggleButton.Template>
                         </ToggleButton>
-                        <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
-                            <Border Name="DropDownBorder" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Effect="{StaticResource SoftShadow}" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                        <Popup
+                            Name="Popup"
+                            AllowsTransparency="True"
+                            Focusable="False"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            Placement="Bottom"
+                            PopupAnimation="Slide">
+                            <Border
+                                Name="DropDownBorder"
+                                MinWidth="{TemplateBinding ActualWidth}"
+                                MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Effect="{StaticResource SoftShadow}">
                                 <ScrollViewer Margin="4,6" SnapsToDevicePixels="True">
                                     <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
@@ -87,9 +137,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="checkBorder" Width="20" Height="20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="{StaticResource SurfaceBrush}" Margin="0,0,8,0">
-                            <Path x:Name="checkMark" Data="M 2 6 L 6 10 L 14 2" Stroke="{StaticResource TextOnPrimaryBrush}" StrokeThickness="2" Stretch="Uniform" Margin="3" Visibility="Collapsed" />
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <Border
+                            x:Name="checkBorder"
+                            Width="20"
+                            Height="20"
+                            Margin="0,0,8,0"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <Path
+                                x:Name="checkMark"
+                                Margin="3"
+                                Data="M 2 6 L 6 10 L 14 2"
+                                Stretch="Uniform"
+                                Stroke="{StaticResource TextOnPrimaryBrush}"
+                                StrokeThickness="2"
+                                Visibility="Collapsed" />
                         </Border>
                         <ContentPresenter VerticalAlignment="Center" />
                     </StackPanel>
@@ -119,8 +184,18 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
-                    <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" SnapsToDevicePixels="True">
-                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    <Border
+                        x:Name="border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <ScrollViewer
+                            x:Name="PART_ContentHost"
+                            Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden"
+                            VerticalScrollBarVisibility="Hidden" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">

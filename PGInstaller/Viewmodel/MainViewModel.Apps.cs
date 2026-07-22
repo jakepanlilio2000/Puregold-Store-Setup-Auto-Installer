@@ -50,6 +50,7 @@ namespace PGInstaller.Viewmodel
                 }
             }
             else { Log("   [SKIP] MMS (IBM Personal Communications) is already installed."); }
+            IncrementProgress();
         }
 
         private async Task ApplyRadminServer()
@@ -84,6 +85,7 @@ namespace PGInstaller.Viewmodel
                 Log("   [WARNING] install.bat not found in Assets.");
             }
             await ConfigureRadminServer();
+            IncrementProgress();
         }
 
         private async Task InstallInventoryTools()
@@ -119,6 +121,45 @@ namespace PGInstaller.Viewmodel
             {
                 Log($"   [WARN] {zipName} not found in Assets.");
             }
+            IncrementProgress();
+        }
+
+        private async Task ClearTaskbar()
+        {
+            Log("   [CONFIG] Clearing existing Taskbar pins...");
+
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband", true);
+                if (key != null)
+                {
+                    key.DeleteValue("Favorites", false);
+                    key.DeleteValue("FavoritesResolve", false);
+                    key.SetValue("FavoritesVersion", 3, RegistryValueKind.DWord);
+
+                    int changes = 0;
+                    if (key.GetValue("FavoritesChanges") is int currentChanges) changes = currentChanges;
+                    key.SetValue("FavoritesChanges", changes + 1, RegistryValueKind.DWord);
+                }
+                string taskBarDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
+
+                if (Directory.Exists(taskBarDir))
+                {
+                    foreach (var file in Directory.GetFiles(taskBarDir, "*.lnk"))
+                    {
+                        try { File.Delete(file); } catch { }
+                    }
+                }
+
+                Log("   [SUCCESS] Taskbar cleared (including default UWP apps).");
+            }
+            catch (Exception ex)
+            {
+                Log($"   [WARN] Failed to clear Taskbar: {ex.Message}");
+            }
+
+            await Task.CompletedTask;
         }
 
         private async Task PinToTaskbar(string appName, string exeName)
@@ -126,102 +167,77 @@ namespace PGInstaller.Viewmodel
             string[] searchPaths = [
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
         Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+        Environment.GetFolderPath(Environment.SpecialFolder.Windows),
         @"C:\Program Files\Google\Chrome\Application",
         @"C:\Program Files\Mozilla Firefox",
         @"C:\Program Files\Mozilla Thunderbird"
             ];
 
             string? targetPath = null;
-            foreach (var dir in searchPaths)
-            {
-                if (Directory.Exists(dir))
-                {
-                    try
-                    {
-                        var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
-                            .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
-                        var match = files.FirstOrDefault(f =>
-                            Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
-                            Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
 
-                        if (match != null)
+            if (appName.Equals("File Explorer", StringComparison.OrdinalIgnoreCase))
+            {
+                targetPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            }
+            else
+            {
+                foreach (var dir in searchPaths)
+                {
+                    if (Directory.Exists(dir))
+                    {
+                        try
                         {
-                            targetPath = match;
-                            break;
+                            var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
+                                .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
+
+                            var match = files.FirstOrDefault(f =>
+                                Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
+                                Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
+
+                            if (match != null)
+                            {
+                                targetPath = match;
+                                break;
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
             }
 
             if (targetPath != null)
             {
-                Log($"   [CONFIG] Attempting to pin {appName} to Taskbar...");
-                try
+                Log($"   [CONFIG] Pinning {appName} to Taskbar...");
+                string scriptPath = Path.Combine(_assetsPath!, "Pin-Taskbar.ps1");
+
+                if (File.Exists(scriptPath))
                 {
-                    string psScript = $@"
-                                            $appPath = '{targetPath}'
-                                            $shell = New-Object -ComObject Shell.Application
-                                            $folder = $shell.Namespace((Split-Path $appPath))
-                                            $item = $folder.ParseName((Split-Path $appPath -Leaf))
-                                            $verb = $item.Verbs() | Where-Object {{ $_.Name -match 'Pin to taskbar' }}
-            
-                                            if ($verb) {{
-                                                $verb.DoIt()
-                                                Write-Host 'SUCCESS: Pinned via COM'
-                                            }} else {{
-                                                # Fallback to LayoutModification.xml for Windows 11
-                                                $xmlPath = '$env:APPDATA\Microsoft\Windows\Shell\LayoutModification.xml'
-                                                $xmlContent = @'
-                                <?xml version=""1.0"" encoding=""utf-8""?>
-                                <LayoutModificationTemplate xmlns=""http://schemas.microsoft.com/Start/2014/LayoutModification"" xmlns:defaultlayout=""http://schemas.microsoft.com/Start/2014/FullDefaultLayout"" xmlns:start=""http://schemas.microsoft.com/Start/2014/StartLayout"" xmlns:taskbar=""http://schemas.microsoft.com/Start/2014/TaskbarLayout"" Version=""1"">
-                                  <CustomTaskbarLayoutCollection PinListPlacement=""Replace"">
-                                    <defaultlayout:TaskbarLayout>
-                                      <taskbar:TaskbarPinList>
-                                        <taskbar:DesktopApp DesktopApplicationLinkPath=""{targetPath}"" />
-                                      </taskbar:TaskbarPinList>
-                                    </defaultlayout:TaskbarLayout>
-                                  </CustomTaskbarLayoutCollection>
-                                </LayoutModificationTemplate>
-                                '@
-                                                Set-Content -Path $xmlPath -Value $xmlContent -Force
-                                                Write-Host 'SUCCESS: Pinned via LayoutModification.xml'
-                                            }}
-                                            ";
+                    string safePath = targetPath.Replace("'", "''");
 
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
-                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript}\"",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -Pin \"{safePath}\" -Silent",
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true
                     };
 
-                    bool success = await RunCustomProcess(startInfo, $"Pinning {appName}");
+                    bool success = await RunCustomProcess(startInfo, $"Pinning {appName}", true);
 
-                    if (!success)
-                    {
-                        Log($"   [WARN] Modern pinning failed. Trying legacy fallback for {appName}...");
-                        var legacyStartInfo = new ProcessStartInfo
-                        {
-                            FileName = targetPath,
-                            Verb = "taskbarpin",
-                            UseShellExecute = true,
-                            CreateNoWindow = true
-                        };
-                        Process.Start(legacyStartInfo);
-                        Log($"   [SUCCESS] Legacy pinning attempted for {appName}.");
-                    }
-                    else
+                    if (success)
                     {
                         Log($"   [SUCCESS] Pinned {appName} to Taskbar.");
                     }
+                    else
+                    {
+                        Log($"   [WARN] Pinning script reported failure for {appName}.");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    Log($"   [ERROR] Failed to pin {appName}: {ex.Message}");
+                    Log($"   [ERROR] Pin-Taskbar.ps1 not found in Assets folder.");
                 }
             }
             else
@@ -229,7 +245,6 @@ namespace PGInstaller.Viewmodel
                 Log($"   [WARN] Could not find {appName} ({exeName}) to pin.");
             }
         }
-
         private async Task InstallAVGW()
         {
             string exeName = "A&VGWSetup.exe";
@@ -255,7 +270,6 @@ namespace PGInstaller.Viewmodel
             Log("   [INSTALL] Installing Annual & Variance Gateway silently...");
             await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing A&VGW");
 
-            // Locate the installed config.json in Program Files
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             string? configPath = null;
@@ -276,7 +290,6 @@ namespace PGInstaller.Viewmodel
                 {
                     string json = File.ReadAllText(configPath);
 
-                    // Inject the user-provided values into the JSON file
                     json = Regex.Replace(json, @"""DbHost""\s*:\s*""[^""]*""", $"\"DbHost\": \"{dbHost}\"");
                     json = Regex.Replace(json, @"""DefaultStoreNum""\s*:\s*""[^""]*""", $"\"DefaultStoreNum\": \"{storeNum}\"");
                     json = Regex.Replace(json, @"""FallbackStoreName""\s*:\s*""[^""]*""", $"\"FallbackStoreName\": \"{fallbackStore}\"");
@@ -293,6 +306,7 @@ namespace PGInstaller.Viewmodel
             {
                 Log($"   [WARN] config.json not found. It may be installed in a non-standard directory.");
             }
+            IncrementProgress();
         }
 
         private async Task ConfigureRadminServer()
@@ -335,6 +349,7 @@ namespace PGInstaller.Viewmodel
             {
                 Log($"   [ERROR] Failed to configure Radmin Server: {ex.Message}");
             }
+            IncrementProgress();
         }
         private async Task InstallWampServer()
         {
@@ -433,6 +448,7 @@ Require all granted
                     Log($"   [ERROR] Wamp Config Failed: {ex.Message}");
                 }
             }
+            IncrementProgress();
         }
 
         private async Task PasteVARIANCE()
@@ -455,6 +471,7 @@ Require all granted
             {
                 Log("   [WARN] variance.zip not found in Assets.");
             }
+            IncrementProgress();
         }
 
         private string GetNetFxSourceFolder()
@@ -560,6 +577,7 @@ Require all granted
                 Log("   [SUCCESS] .NET Framework 3.5 installed.");
             else
                 Log("   [ERROR] Installation failed. Check logs.");
+            IncrementProgress();
         }
 
         private async Task InstallPIMS()
@@ -684,6 +702,7 @@ Require all granted
             {
                 Log("   [WARN] IP Address input cancelled. Registry not updated.");
             }
+            IncrementProgress();
         }
 
         private bool VerifyFile(string path)
@@ -692,6 +711,7 @@ Require all granted
                 return true;
             Log($"   [ERROR] Missing file: {Path.GetFileName(path)}");
             return false;
+
         }
 
         private async Task CopyDirectoryAsync(string sourceDir, string targetDir)
@@ -705,7 +725,6 @@ Require all granted
 
                     foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
                     {
-                        // .NET 4.8 compatible replacement for Path.GetRelativePath
                         string relativePath = file[sourceDirClean.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                         string destPath = Path.Combine(targetDir, relativePath);
 
@@ -743,61 +762,13 @@ Require all granted
 
         private string ShowInputDialog(string question, string defaultAnswer = "")
         {
-            Window window = new()
+            var dialog = new InputDialog(question, defaultAnswer)
             {
-                Title = "Configuration",
-                Width = 350,
-                Height = 180,
-                WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStyle = WindowStyle.ToolWindow,
+                Owner = Application.Current.MainWindow 
             };
 
-            StackPanel stack = new()
-            {
-                Margin = new Thickness(20),
-            };
-
-            stack.Children.Add(
-                new TextBlock()
-                {
-                    Text = question,
-                    FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 0, 0, 10),
-                }
-            );
-
-            TextBox txtAnswer = new()
-            {
-                Text = defaultAnswer,
-                Height = 30,
-                VerticalContentAlignment = VerticalAlignment.Center,
-            };
-            stack.Children.Add(txtAnswer);
-
-            Button btnOk = new()
-            {
-                Content = "OK",
-                IsDefault = true,
-                Height = 30,
-                Width = 80,
-                Margin = new Thickness(0, 20, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Right,
-            };
-            stack.Children.Add(btnOk);
-
-            string result = "";
-
-            btnOk.Click += (s, e) =>
-            {
-                result = txtAnswer.Text;
-                window.Close();
-            };
-
-            window.Content = stack;
-            window.ShowDialog();
-
-            return result;
+            bool? result = dialog.ShowDialog();
+            return result == true ? dialog.Answer : "";
         }
 
         private async Task InstallFSDM()
@@ -922,6 +893,7 @@ Require all granted
                 }
                 catch (Exception ex) { Log($"   [ERROR] Failed copy updater: {ex.Message}"); }
             }
+            IncrementProgress();
         }
 
         private async Task InstallCorelPSIllu()
@@ -1016,29 +988,32 @@ Require all granted
             {
                 Log("   [SKIP] pscs6.zip not found.");
             }
+            IncrementProgress();
         }
 
         private async Task CreateAllUsersShortcut(string linkName, string targetPath, string? workingDir = null)
         {
             string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-            string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
-
             string shortcutPath = Path.Combine(publicDesktop, $"{linkName}.lnk");
-            string startMenuPath = Path.Combine(publicStartMenu, $"{linkName}.lnk");
 
-            if (!File.Exists(shortcutPath) || !File.Exists(startMenuPath))
+            string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
+            if (!Directory.Exists(publicStartMenu))
+            {
+                Directory.CreateDirectory(publicStartMenu);
+            }
+            string startMenuShortcut = Path.Combine(publicStartMenu, $"{linkName}.lnk");
+
+            if (!File.Exists(shortcutPath) || !File.Exists(startMenuShortcut))
             {
                 Log($"   [SHORTCUT] Deploying '{linkName}' for All Users...");
                 string workDirArg = string.IsNullOrEmpty(workingDir) ? "" : $"; $s.WorkingDirectory = '{workingDir}'";
                 string script = $"$ws = New-Object -ComObject WScript.Shell; " +
-                                $"$s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{targetPath}'; {workDirArg}; $s.Save(); " +
-                                $"$s2 = $ws.CreateShortcut('{startMenuPath}'); $s2.TargetPath = '{targetPath}'; {workDirArg}; $s2.Save();";
+                                $"$s = $ws.CreateShortcut('{shortcutPath}'); " +
+                                $"$s.TargetPath = '{targetPath}'; {workDirArg}; $s.Save(); " +
+                                $"$s2 = $ws.CreateShortcut('{startMenuShortcut}'); " +
+                                $"$s2.TargetPath = '{targetPath}'; {workDirArg}; $s2.Save();";
 
                 await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", $"Creating All-Users Shortcut: {linkName}", true);
-            }
-            else
-            {
-                Log($"   [SKIP] Shortcut '{linkName}' already exists for All Users.");
             }
         }
 
@@ -1059,6 +1034,7 @@ Require all granted
             {
                 Log($"   [WARN] Registry file missing: {Path.GetFileName(regFile)}");
             }
+            IncrementProgress();
         }
 
         private async Task InstallRadminViewer()
@@ -1089,6 +1065,7 @@ Require all granted
             {
                 Log($"   [WARN] Radmin phonebook not found: {rpbName}");
             }
+            IncrementProgress();
         }
 
         private async Task InstallWinSCP()
@@ -1147,6 +1124,7 @@ Require all granted
             {
                 Log("   [SKIP] WinSCP.ini not found in Assets.");
             }
+            IncrementProgress();
         }
 
         private async Task RunChromeBookmarkScript()
@@ -1160,31 +1138,24 @@ Require all granted
             if (string.IsNullOrWhiteSpace(ownIp)) { Log("   [SKIP] IP missing."); return; }
 
             string scriptName = "cbm.ps1";
-            string csvName = "port#  & IP ZONE11.csv";
             string tempDir = @"C:\Assets\PG_CBM_Exec";
 
             try
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
+                var files = Directory.GetFiles(_assetsPath!, "*.csv", SearchOption.AllDirectories);
+                var match = files.FirstOrDefault(f => Path.GetFileName(f).Contains("ZONE11", StringComparison.OrdinalIgnoreCase));
 
-                string sourceCsv = Path.Combine(_assetsPath!, csvName);
-                if (!File.Exists(sourceCsv))
+                if (match == null)
                 {
-                    var files = Directory.GetFiles(_assetsPath!, "*.csv", SearchOption.AllDirectories);
-                    var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(csvName, StringComparison.OrdinalIgnoreCase));
-                    if (match != null) sourceCsv = match;
-                }
-
-                if (File.Exists(sourceCsv))
-                {
-                    File.Copy(sourceCsv, Path.Combine(tempDir, csvName), true);
-                }
-                else
-                {
-                    Log($"   [ERROR] CSV '{csvName}' not found. Script will fail.");
+                    Log($"   [ERROR] CSV file containing 'ZONE11' not found. Script will fail.");
                     return;
                 }
+
+                string sourceCsv = match;
+                string csvFileName = Path.GetFileName(sourceCsv);
+                File.Copy(sourceCsv, Path.Combine(tempDir, csvFileName), true);
 
                 string sourceScript = Path.Combine(_assetsPath!, scriptName);
                 if (!File.Exists(sourceScript))
@@ -1218,6 +1189,7 @@ Require all granted
             {
                 Log($"   [ERROR] CBM Execution Failed: {ex.Message}");
             }
+            IncrementProgress();
         }
 
         private async Task InstallBartender()
@@ -1287,6 +1259,7 @@ Require all granted
             {
                 Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
+            IncrementProgress();
         }
         private void EnsureWpsShortcutsForAllUsers()
         {
@@ -1300,7 +1273,7 @@ Require all granted
 
                 if (!Directory.Exists(publicStartMenu)) Directory.CreateDirectory(publicStartMenu);
 
-                string[] wpsExeNames = { "wps.exe", "wpp.exe", "et.exe" };
+                string[] wpsExeNames = ["wps.exe", "wpp.exe", "et.exe"];
                 var exePaths = Directory.GetFiles(wpsInstallDir, "*.exe", SearchOption.AllDirectories)
                     .Where(f => wpsExeNames.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
                     .ToArray();

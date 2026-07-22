@@ -71,10 +71,10 @@ namespace PGInstaller.Viewmodel
         }
 
         private async Task RunScriptTask(
-            string scriptName,
-            string description,
-            string? altName = null
-        )
+    string scriptName,
+    string description,
+    string? altName = null
+)
         {
             if (IsBusy) return;
             IsBusy = true;
@@ -100,7 +100,19 @@ namespace PGInstaller.Viewmodel
 
                 if (File.Exists(scriptPath))
                 {
-                    await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\"", description);
+                    if (scriptPath.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await RunProcessAsync(
+                            "powershell.exe",
+                            $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                            description
+                        );
+                    }
+                    else
+                    {
+                        await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\"", description);
+                    }
+
                     Log("   [SUCCESS] Operation complete.");
                 }
                 else

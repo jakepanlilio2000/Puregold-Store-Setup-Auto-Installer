@@ -10,8 +10,18 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" SnapsToDevicePixels="True">
-                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    <Border
+                        x:Name="border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <ScrollViewer
+                            x:Name="PART_ContentHost"
+                            Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden"
+                            VerticalScrollBarVisibility="Hidden" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -53,9 +63,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="checkBorder" Width="20" Height="20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="{StaticResource SurfaceBrush}" Margin="0,0,8,0">
-                            <Path x:Name="checkMark" Data="M 2 6 L 6 10 L 14 2" Stroke="{StaticResource TextOnPrimaryBrush}" StrokeThickness="2" Stretch="Uniform" Margin="3" Visibility="Collapsed" />
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <Border
+                            x:Name="checkBorder"
+                            Width="20"
+                            Height="20"
+                            Margin="0,0,8,0"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <Path
+                                x:Name="checkMark"
+                                Margin="3"
+                                Data="M 2 6 L 6 10 L 14 2"
+                                Stretch="Uniform"
+                                Stroke="{StaticResource TextOnPrimaryBrush}"
+                                StrokeThickness="2"
+                                Visibility="Collapsed" />
                         </Border>
                         <ContentPresenter VerticalAlignment="Center" />
                     </StackPanel>

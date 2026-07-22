@@ -23,12 +23,16 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty] private bool _isBusy;
         [ObservableProperty] private string? _selectedDepartment;
         [ObservableProperty] private int _pendingTasksCount;
-        [ObservableProperty] private string _domainStatus = "Checking...";
+        [ObservableProperty]
+        private string _domainStatus = "Checking...";
         [ObservableProperty]
         private string _currentTaskDescription = "Ready";
         [ObservableProperty]
         private int _installSuccessCount;
-
+        [ObservableProperty] private string _pcName = Environment.MachineName;
+        [ObservableProperty] private string _cpuInfo = "Loading...";
+        [ObservableProperty] private string _ramInfo = "Loading...";
+        [ObservableProperty] private string _osVersion = "Loading...";
         [ObservableProperty]
         private int _installFailCount;
 
@@ -77,6 +81,7 @@ namespace PGInstaller.Viewmodel
             _ = CheckDefender();
             _ = CheckSystemRestoreStatus();
             _ = CheckDomainStatusAsync();
+            _ = LoadSystemInfoAsync();
 
             FilteredPreviewList = CollectionViewSource.GetDefaultView(PreviewList);
             FilteredPreviewList.Filter = item =>
@@ -90,9 +95,50 @@ namespace PGInstaller.Viewmodel
             };
         }
 
+        public void IncrementProgress()
+        {
+            CurrentStep++;
+            ProgressPercentage = TotalSteps > 0 ? Math.Min(100, (int)((double)CurrentStep / TotalSteps * 100)) : 0;
+        }
+        private async Task LoadSystemInfoAsync()
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_Processor");
+                    foreach (var obj in searcher.Get()) { CpuInfo = obj["Name"]?.ToString()?.Replace("  ", " ").Trim() ?? "Unknown CPU"; break; }
+
+                    using var ramSearcher = new System.Management.ManagementObjectSearcher("SELECT Capacity FROM Win32_PhysicalMemory");
+                    ulong totalCapacity = 0;
+                    foreach (var obj in ramSearcher.Get()) { totalCapacity += Convert.ToUInt64(obj["Capacity"]); }
+                    RamInfo = $"{Math.Round(totalCapacity / (1024.0 * 1024.0 * 1024.0), 1)} GB RAM";
+
+                    OsVersion = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
+                }
+                catch { OsVersion = Environment.OSVersion.ToString(); }
+            });
+        }
         partial void OnManifestSearchTextChanged(string value)
         {
             FilteredPreviewList.Refresh();
+        }
+
+        private void ApplySystemOptimizations()
+        {
+            Log("   [OPTIMIZE] Applying Windows performance and UI optimizations...");
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"))
+                    key?.SetValue("", "", RegistryValueKind.String);
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"))
+                    key?.SetValue("VisualFXSetting", 2, RegistryValueKind.DWord);
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                    key?.SetValue("EnableTransparency", 0, RegistryValueKind.DWord);
+
+                Log("   [SUCCESS] System optimizations applied.");
+            }
+            catch (Exception ex) { Log($"   [WARN] Optimization failed: {ex.Message}"); }
         }
 
         [RelayCommand]
@@ -133,7 +179,7 @@ namespace PGInstaller.Viewmodel
             {
                 try
                 {
-                    var properties = IPGlobalProperties.GetIPGlobalProperties();
+                    var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
                     if (!string.IsNullOrEmpty(properties.DomainName) && properties.DomainName != properties.HostName)
                     {
                         DomainStatus = $"Joined: {properties.DomainName}";
@@ -149,19 +195,28 @@ namespace PGInstaller.Viewmodel
                 }
             });
         }
+        
         [RelayCommand]
         private async Task Install()
         {
             if (IsBusy) return;
 
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            if (!principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
+            {
+                MessageBox.Show("Administrator privileges required.", "Admin Required", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             var selectedApps = PreviewList.Where(x => x.IsChecked).Select(x => x.Name).ToList();
-            if (!selectedApps.Any())
+            if (selectedApps.Count == 0)
             {
                 Log("   [WARN] No applications selected for installation.");
                 return;
             }
 
-            TotalSteps = selectedApps.Count;
+            TotalSteps = PreviewList.Count;
             CurrentStep = 0;
             ProgressPercentage = 0;
             CurrentTaskDescription = "Initializing installation...";
@@ -177,8 +232,22 @@ namespace PGInstaller.Viewmodel
             LogOutput = "";
             Log("------------------------------------------------");
             Log($"Starting Installation for: {SelectedDepartment} ({selectedApps.Count} items selected)");
+
             try
             {
+
+                bool renameProceed = await HandleComputerRenameAsync();
+                if (!renameProceed) return;
+
+                bool canProceed = await HandleDomainJoinAsync();
+                if (!canProceed)
+                {
+                    Log("   [INFO] Installation aborted or pending restart. Please run again after restart.");
+                    return;
+                }
+
+                ApplySystemOptimizations();
+
                 Log("   [CONFIG] Disabling Windows Firewall...");
                 await RunProcessAsync("netsh", "advfirewall set allprofiles state off", "Disabling Windows Firewall", true);
 
@@ -188,7 +257,7 @@ namespace PGInstaller.Viewmodel
                     Log("CRITICAL: Failed to prepare assets. Stopping.");
                     return;
                 }
-                await HandleComputerRenameAsync();
+
                 switch (SelectedDepartment)
                 {
                     case "IT": await InstallITPackage(selectedApps); break;
@@ -223,27 +292,56 @@ namespace PGInstaller.Viewmodel
         }
 
 
-        private async Task SmartInstall(string appName, string exeName, string args = "/silent", string? checkName = null)
+        private async Task SmartInstall(
+    string appName,
+    string exeName,
+    string args = "/silent",
+    string? checkName = null
+)
         {
-            if (!string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
-            {
-                RecordInstallResult(appName, false, true);
-                return;
-            }
+            bool isSkipped = false;
+            bool success = false;
 
-            string installerPath = Path.Combine(_assetsPath!, exeName);
-            if (File.Exists(installerPath))
+            try
             {
-                bool success = exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
-                    ? await RunProcessAsync("msiexec.exe", $"/i \"{installerPath}\" {args}", $"Installing {appName}")
-                    : await RunProcessAsync(installerPath, args, $"Installing {appName}");
+                CurrentTaskDescription = $"Installing {appName}...";
 
-                RecordInstallResult(appName, success);
+                if (!string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
+                {
+                    Log($"   [SKIP] {appName} is already installed.");
+                    isSkipped = true;
+                    return;
+                }
+
+                string installerPath = Path.Combine(_assetsPath!, exeName);
+                if (File.Exists(installerPath))
+                {
+                    if (exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                    {
+                        success = await RunProcessAsync("msiexec.exe", $"/i \"{installerPath}\" {args}", $"Installing {appName}");
+                    }
+                    else
+                    {
+                        success = await RunProcessAsync(installerPath, args, $"Installing {appName}");
+                    }
+                }
+                else
+                {
+                    Log($"   [SKIP] Installer not found: {exeName}");
+                    isSkipped = true;
+                }
             }
-            else
+            finally
             {
-                RecordInstallResult(appName, false, true); 
-                Log($"   [WARN] Installer not found: {exeName}");
+                if (isSkipped)
+                {
+                    RecordInstallResult(appName, false, true);
+                }
+                else
+                {
+                    RecordInstallResult(appName, success);
+                }
+                IncrementProgress();
             }
         }
 
@@ -366,10 +464,15 @@ namespace PGInstaller.Viewmodel
 
             await ApplyWallpaper();
 
-            Log("   [CONFIG] Pinning Shortcuts to Taskbar...");
+            Log("   [CONFIG] Managing Taskbar Pins...");
+            await ClearTaskbar();
+
+
+            await PinToTaskbar("File Explorer", "explorer.exe");
             if (selectedApps.Contains("Google Chrome")) await PinToTaskbar("Google Chrome", "chrome.exe");
             if (selectedApps.Contains("Mozilla Firefox")) await PinToTaskbar("Mozilla Firefox", "firefox.exe");
             if (selectedApps.Contains("Mozilla Thunderbird")) await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
+
 
             Log("   [CONFIG] Setting Power Options (Sleep: Never)...");
             await RunProcessAsync("powercfg", "/change standby-timeout-ac 0", "Disable Sleep (AC)");
@@ -515,6 +618,17 @@ namespace PGInstaller.Viewmodel
     bool suppressError = false
 )
         {
+            CurrentTaskDescription = description;
+
+            if (description.Contains("Installing", StringComparison.OrdinalIgnoreCase) ||
+                description.Contains("Deploying", StringComparison.OrdinalIgnoreCase) ||
+                description.Contains("Configuring", StringComparison.OrdinalIgnoreCase) ||
+                description.Contains("Patching", StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentStep++;
+                ProgressPercentage = TotalSteps > 0 ? Math.Min(100, (int)((double)CurrentStep / TotalSteps * 100)) : 0;
+            }
+
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
             var tcs = new TaskCompletionSource<bool>();
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -591,15 +705,16 @@ namespace PGInstaller.Viewmodel
 
         private string CleanLogLine(string line)
         {
+           
+            if (string.IsNullOrWhiteSpace(line)) return null!;
             line = line.Trim();
-            if (string.IsNullOrWhiteSpace(line))
-                return null!;
-            if (line.StartsWith("[=") || line.StartsWith("======="))
-                return null!;
-            if (line.Contains("Extracting"))
-                return null!;
-            if (Regex.IsMatch(line, @"\d+%$"))
-                return null!;
+            if (line.StartsWith("[=") || line.StartsWith("=======")) return null!;
+            if (line.Contains("Extracting", StringComparison.OrdinalIgnoreCase)) return null!;
+            if (line.Contains("VERBOSE1:chrome", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("installer.cc", StringComparison.OrdinalIgnoreCase)) return null!;
+
+            if (Regex.IsMatch(line, @"\d+%$")) return null!;
+
             return line;
         }
 
@@ -607,6 +722,7 @@ namespace PGInstaller.Viewmodel
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                LogOutput ??= string.Empty;
                 LogOutput += $"{message}{Environment.NewLine}";
             });
         }
@@ -651,8 +767,7 @@ namespace PGInstaller.Viewmodel
                 Directory.CreateDirectory(logDir);
                 string fileName = $"{Environment.MachineName}_{DateTime.Now:yyyyMMdd_HHmmss}.log";
                 string filePath = Path.Combine(logDir, fileName);
-
-                File.WriteAllText(filePath, LogOutput);
+                File.WriteAllText(filePath, LogOutput ?? "No log data available.");
                 MessageBox.Show($"Log exported successfully to:\n{filePath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)

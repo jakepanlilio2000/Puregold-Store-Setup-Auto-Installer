@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -14,20 +15,13 @@ namespace PGInstaller.Viewmodel
         {
             try
             {
-                using var searcher = new ManagementObjectSearcher("SELECT PartOfDomain FROM Win32_ComputerSystem");
-                foreach (var obj in searcher.Get())
-                {
-                    if (obj["PartOfDomain"] is bool isDomain && isDomain)
-                    {
-                        return true;
-                    }
-                }
+                var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+                return !string.IsNullOrEmpty(properties.DomainName) && properties.DomainName != properties.HostName;
             }
-            catch (Exception ex)
+            catch
             {
-                Log($"   [WARN] Failed to check domain membership via WMI: {ex.Message}");
+                return false;
             }
-            return false;
         }
 
         private async Task<(bool success, bool rebootRequired, string message)> JoinDomainAsync(string domain, string username, SecureString securePassword)
@@ -118,7 +112,6 @@ namespace PGInstaller.Viewmodel
             }
 
             Log("   [WARN] Machine is NOT joined to the domain.");
-
             var result = MessageBox.Show(
                 "This computer is not currently joined to the company domain.\n\n" +
                 "Department package installation is recommended after joining the domain.\n\n" +
@@ -129,7 +122,7 @@ namespace PGInstaller.Viewmodel
 
             if (result == MessageBoxResult.No)
             {
-                Log("   [WARN] Skipping domain join. Some configurations (GPOs, domain resources) may not apply until joined.");
+                Log("   [WARN] Skipping domain join. Some configurations may not apply.");
                 return true;
             }
 
@@ -139,33 +132,35 @@ namespace PGInstaller.Viewmodel
                 return false;
             }
 
-            var joinWindow = new DomainJoinWindow
-            {
-                Owner = Application.Current.MainWindow,
-                JoinAction = JoinDomainAsync
-            };
-
+            var joinWindow = new DomainJoinWindow { Owner = Application.Current.MainWindow, JoinAction = JoinDomainAsync };
             bool? dialogResult = joinWindow.ShowDialog();
 
             if (dialogResult == true)
             {
                 Log("   [SUCCESS] Domain join process completed.");
-                Log("   [CONFIG] Refreshing Group Policy to apply domain settings...");
-                bool gpSuccess = await RunProcessAsync("gpupdate.exe", "/force", "Group Policy Update", true);
 
-                if (gpSuccess)
+                var rebootResult = MessageBox.Show(
+                    "Domain join was successful, but a system restart is required to apply changes.\n\n" +
+                    "Would you like to restart now? (Installation will resume after reboot)",
+                    "Restart Required",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
+
+                if (rebootResult == MessageBoxResult.Yes)
                 {
-                    Log("   [SUCCESS] Group Policy refreshed successfully.");
+                    Log("   [REBOOT] Restarting system to apply domain changes...");
+                    Process.Start(new ProcessStartInfo { FileName = "shutdown.exe", Arguments = "/r /t 0 /c \"Restarting to apply domain changes\"", UseShellExecute = false });
+                    Application.Current.Shutdown();
+                    return false;
                 }
                 else
                 {
-                    Log("   [WARN] Group Policy refresh failed or timed out. Policies will apply on next reboot/login.");
+                    Log("   [WARN] Restart postponed. Please restart manually before proceeding with installation.");
+                    return false; 
                 }
-
-                return true;
             }
 
-            Log("   [WARN] Domain join window closed without completing. Continuing without domain join.");
+            Log("   [WARN] Domain join window closed without completing.");
             return true;
         }
     }

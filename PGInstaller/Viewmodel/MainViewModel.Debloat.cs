@@ -7,7 +7,7 @@ namespace PGInstaller.Viewmodel
         [RelayCommand(CanExecute = nameof(CanRunTool))]
         private async Task RunDebloat()
         {
-            await RunScriptTask("debloat.bat", "Debloating Windows...");
+            await RunScriptTask("debloat.ps1", "Debloating Windows...");
         }
     }
 }
