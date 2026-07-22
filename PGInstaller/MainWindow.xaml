@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer v1.4"
+    Title="PG-AIO Installer v2.0"
     Width="1200"
     Height="850"
     MinWidth="1000"
@@ -87,7 +87,7 @@
                 </StackPanel>
 
                 <!--  Middle: Scrollable Context  -->
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                     <StackPanel Margin="24,0,24,24">
                         <!--  System Info  -->
                         <TextBlock
@@ -161,15 +161,34 @@
                             ItemsSource="{Binding Departments}"
                             SelectedItem="{Binding SelectedDepartment}"
                             Style="{StaticResource ModernComboBox}" />
-                        <TextBox
-                            Margin="0,0,0,12"
-                            Style="{StaticResource ModernTextBox}"
-                            Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}">
-                            <TextBox.InputBindings>
-                                <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
-                            </TextBox.InputBindings>
-                        </TextBox>
+                        <Grid Margin="0,0,0,12">
+                            <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
 
+                            <TextBlock
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Foreground="#888"
+                                IsHitTestVisible="False"
+                                Text="Search...">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ManifestSearchText}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ManifestSearchText}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                         <!--  Install Manifest  -->
                         <TextBlock
                             Margin="0,0,0,12"
@@ -242,10 +261,13 @@
                             <TextBlock Style="{StaticResource OverlineStyle}" Text="DOMAIN STATUS" />
                             <TextBlock
                                 Margin="0,8,0,0"
-                                FontSize="24"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="15"
                                 FontWeight="Bold"
                                 Foreground="{StaticResource GoldBrush}"
-                                Text="{Binding DomainStatus}" />
+                                Text="{Binding DomainStatus}"
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="4" Style="{StaticResource GlassCard}">

@@ -106,17 +106,47 @@ namespace PGInstaller.Viewmodel
             {
                 try
                 {
-                    using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_Processor");
-                    foreach (var obj in searcher.Get()) { CpuInfo = obj["Name"]?.ToString()?.Replace("  ", " ").Trim() ?? "Unknown CPU"; break; }
+                    using var cpuSearcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_Processor");
+                    foreach (var obj in cpuSearcher.Get())
+                    {
+                        CpuInfo = obj["Name"]?.ToString()?.Replace("  ", " ").Trim() ?? "Unknown CPU";
+                        break;
+                    }
 
                     using var ramSearcher = new System.Management.ManagementObjectSearcher("SELECT Capacity FROM Win32_PhysicalMemory");
                     ulong totalCapacity = 0;
-                    foreach (var obj in ramSearcher.Get()) { totalCapacity += Convert.ToUInt64(obj["Capacity"]); }
+                    foreach (var obj in ramSearcher.Get())
+                    {
+                        totalCapacity += Convert.ToUInt64(obj["Capacity"]);
+                    }
                     RamInfo = $"{Math.Round(totalCapacity / (1024.0 * 1024.0 * 1024.0), 1)} GB RAM";
+                    using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+                    if (key != null)
+                    {
+                        string productName = key.GetValue("ProductName")?.ToString() ?? "Windows";
+                        string edition = key.GetValue("EditionID")?.ToString() ?? "";
+                        string displayVersion = key.GetValue("DisplayVersion")?.ToString() ?? "";
+                        string buildNumber = key.GetValue("CurrentBuild")?.ToString() ?? "";
 
-                    OsVersion = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
+                        if (!string.IsNullOrEmpty(displayVersion) && !string.IsNullOrEmpty(buildNumber))
+                        {
+                            OsVersion = $"{productName} {displayVersion} (Build {buildNumber})";
+                        }
+                        else if (!string.IsNullOrEmpty(buildNumber))
+                        {
+                            OsVersion = $"{productName} (Build {buildNumber})";
+                        }
+                        else
+                        {
+                            OsVersion = productName;
+                        }
+                    }
                 }
-                catch { OsVersion = Environment.OSVersion.ToString(); }
+                catch (Exception ex)
+                {
+                    Log($"   [WARN] Failed to load system info: {ex.Message}");
+                    OsVersion = Environment.OSVersion.ToString();
+                }
             });
         }
         partial void OnManifestSearchTextChanged(string value)
