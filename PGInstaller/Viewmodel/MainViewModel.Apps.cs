@@ -1225,9 +1225,23 @@ Require all granted
         private async Task InstallBartender(IEnumerable<string> selectedApps)
         {
             string? selectedVersion = null;
-            if (selectedApps.Contains("Bartender 10.1")) selectedVersion = "Bartender 10.1";
-            else if (selectedApps.Contains("Bartender 2016")) selectedVersion = "Bartender 2016";
-            else if (selectedApps.Contains("Bartender 2022")) selectedVersion = "Bartender 2022";
+            string installerExe = null!;
+
+            if (selectedApps.Contains("Bartender 10.1"))
+            {
+                selectedVersion = "Bartender 10.1";
+                installerExe = "bt10.1.exe";
+            }
+            else if (selectedApps.Contains("Bartender 2016"))
+            {
+                selectedVersion = "Bartender 2016";
+                installerExe = "bt2016.exe";
+            }
+            else if (selectedApps.Contains("Bartender 2022"))
+            {
+                selectedVersion = "Bartender 2022";
+                installerExe = "bt2022.exe";
+            }
 
             if (string.IsNullOrEmpty(selectedVersion))
             {
@@ -1237,86 +1251,53 @@ Require all granted
 
             Log($"   [INIT] Starting {selectedVersion} Installation...");
 
-            string zipName = selectedVersion switch
-            {
-                "Bartender 10.1" => "bartender_10.1.zip",
-                "Bartender 2016" => "bartender_2016.zip",
-                "Bartender 2022" => "bartender_2022.zip",
-                _ => throw new InvalidOperationException("Invalid Bartender version")
-            };
+            string installerPath = Path.Combine(_assetsPath!, installerExe);
 
-            string zipPath = Path.Combine(_assetsPath!, zipName);
-            string extractDir = @"C:\Assets\Bartender_Install";
-
-            if (!File.Exists(zipPath))
+            if (!File.Exists(installerPath))
             {
-                Log($"   [ERROR] {zipName} not found in Assets.");
+                Log($"   [ERROR] {installerExe} not found in Assets.");
                 return;
             }
 
-            if (!Directory.Exists(extractDir))
+            await RunProcessAsync(installerPath, "/S", $"Installing {selectedVersion}");
+            if (selectedVersion == "Bartender 10.1")
             {
-                Log("   [EXTRACT] Unzipping bartender package...");
-                try
+                await Task.Delay(3000);
+                Log("   [PATCH] Applying BarTend.exe patch for Bartender 10.1...");
+
+
+                string patchedExe = Path.Combine(_assetsPath!, "bartend.exe");
+                string targetExe = @"C:\Program Files (x86)\Seagull\BarTender Suite\BarTend.exe";
+
+                if (File.Exists(patchedExe))
                 {
-                    Directory.CreateDirectory(extractDir);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractDir));
-                }
-                catch (Exception ex)
-                {
-                    Log($"   [ERROR] Extraction failed: {ex.Message}");
-                    return;
-                }
-            }
-
-            string setupExe = Path.Combine(extractDir, "bartender.exe");
-
-            if (File.Exists(setupExe))
-            {
-                await RunProcessAsync(setupExe, "/S", $"Installing {selectedVersion}");
-                if (selectedVersion == "Bartender 10.1")
-                {
-                    await Task.Delay(2000); 
-                    Log("   [PATCH] Applying BarTend.exe patch for Bartender 10.1...");
-
-                    string patchedExe = Path.Combine(extractDir, "BarTend.exe");
-                    string targetExe = @"C:\Program Files (x86)\Seagull\BarTender Suite\BarTend.exe";
-
-                    if (File.Exists(patchedExe))
+                    try
                     {
-                        try
+                        var processes = Process.GetProcessesByName("BarTend");
+                        foreach (var proc in processes)
                         {
-                            var processes = Process.GetProcessesByName("BarTend");
-                            foreach (var proc in processes)
-                            {
-                                proc.Kill();
-                                proc.WaitForExit();
-                            }
-
-                            if (File.Exists(targetExe))
-                            {
-                                File.Copy(targetExe, targetExe + ".backup", true);
-                                Log("   [BACKUP] Original BarTend.exe backed up.");
-                            }
-
-                            File.Copy(patchedExe, targetExe, true);
-                            Log("   [SUCCESS] BarTend.exe replaced successfully.");
+                            proc.Kill();
+                            proc.WaitForExit();
                         }
-                        catch (Exception ex)
+
+                        if (File.Exists(targetExe))
                         {
-                            Log($"   [ERROR] Failed to replace BarTend.exe: {ex.Message}");
+                            File.Copy(targetExe, targetExe + ".backup", true);
+                            Log("   [BACKUP] Original BarTend.exe backed up.");
                         }
+
+                        File.Copy(patchedExe, targetExe, true);
+                        Log("   [SUCCESS] BarTend.exe replaced successfully.");
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Log("   [WARN] Patched BarTend.exe not found in extracted folder.");
+                        Log($"   [ERROR] Failed to replace BarTend.exe: {ex.Message}");
                     }
                 }
-            }
-            else
-            {
-                Log("   [ERROR] bartender.exe not found inside extracted folder.");
-                return;
+                else
+                {
+                    Log("   [WARN] Patched bartend.exe not found in Assets folder.");
+                }
             }
 
             string btZip = Path.Combine(_assetsPath!, "bt.zip");
