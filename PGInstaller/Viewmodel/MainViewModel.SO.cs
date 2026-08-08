@@ -22,17 +22,19 @@
             }
 
             if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
-            if (selectedApps.Contains("PIMS")) await InstallPIMS(); 
+            if (selectedApps.Contains("PIMS")) await InstallPIMS();
 
             switch (role)
             {
                 case "Manager":
                     break;
                 case "Customer Service":
-                    if (selectedApps.Contains("Bartender")) await InstallBartender();
+                    if (selectedApps.Contains("Bartender 10.1") || selectedApps.Contains("Bartender 2016") || selectedApps.Contains("Bartender 2022"))
+                        await InstallBartender(selectedApps);
                     break;
                 case "Selling":
-                    if (selectedApps.Contains("Bartender")) await InstallBartender();
+                    if (selectedApps.Contains("Bartender 10.1") || selectedApps.Contains("Bartender 2016") || selectedApps.Contains("Bartender 2022"))
+                        await InstallBartender(selectedApps);
                     break;
                 case "HBC":
                     break;

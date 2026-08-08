@@ -1192,11 +1192,59 @@ Require all granted
             IncrementProgress();
         }
 
-        private async Task InstallBartender()
+        private async Task InstallBartenderDrivers(IEnumerable<string> selectedApps)
         {
-            Log("   [INIT] Starting Bartender Installation...");
+            string? selectedDriver = null;
+            if (selectedApps.Contains("Argox Driver")) selectedDriver = "Argox Driver";
+            else if (selectedApps.Contains("Zebra Driver")) selectedDriver = "Zebra Driver";
 
-            string zipName = "bartender.zip";
+            if (string.IsNullOrEmpty(selectedDriver))
+            {
+                Log("   [SKIP] No Bartender driver selected.");
+                return;
+            }
+
+            Log($"   [INIT] Installing {selectedDriver}...");
+
+            string driverExe = selectedDriver switch
+            {
+                "Argox Driver" => Path.Combine(_assetsPath!, "argox_drvr.exe"),
+                "Zebra Driver" => Path.Combine(_assetsPath!, "zebra_drvr.exe"),
+                _ => throw new InvalidOperationException("Invalid driver selection")
+            };
+
+            if (File.Exists(driverExe))
+            {
+                await RunProcessAsync(driverExe, "", $"Installing {selectedDriver} (Interactive)");
+            }
+            else
+            {
+                Log($"   [ERROR] {selectedDriver} installer not found in Assets.");
+            }
+        }
+        private async Task InstallBartender(IEnumerable<string> selectedApps)
+        {
+            string? selectedVersion = null;
+            if (selectedApps.Contains("Bartender 10.1")) selectedVersion = "Bartender 10.1";
+            else if (selectedApps.Contains("Bartender 2016")) selectedVersion = "Bartender 2016";
+            else if (selectedApps.Contains("Bartender 2022")) selectedVersion = "Bartender 2022";
+
+            if (string.IsNullOrEmpty(selectedVersion))
+            {
+                Log("   [SKIP] No Bartender version selected.");
+                return;
+            }
+
+            Log($"   [INIT] Starting {selectedVersion} Installation...");
+
+            string zipName = selectedVersion switch
+            {
+                "Bartender 10.1" => "bartender_10.1.zip",
+                "Bartender 2016" => "bartender_2016.zip",
+                "Bartender 2022" => "bartender_2022.zip",
+                _ => throw new InvalidOperationException("Invalid Bartender version")
+            };
+
             string zipPath = Path.Combine(_assetsPath!, zipName);
             string extractDir = @"C:\Assets\Bartender_Install";
 
@@ -1208,7 +1256,7 @@ Require all granted
 
             if (!Directory.Exists(extractDir))
             {
-                Log("   [EXTRACT] Unzipping bartender.zip...");
+                Log("   [EXTRACT] Unzipping bartender package...");
                 try
                 {
                     Directory.CreateDirectory(extractDir);
@@ -1225,7 +1273,45 @@ Require all granted
 
             if (File.Exists(setupExe))
             {
-                await RunProcessAsync(setupExe, "/S", "Installing Bartender Software");
+                await RunProcessAsync(setupExe, "/S", $"Installing {selectedVersion}");
+                if (selectedVersion == "Bartender 10.1")
+                {
+                    await Task.Delay(2000); 
+                    Log("   [PATCH] Applying BarTend.exe patch for Bartender 10.1...");
+
+                    string patchedExe = Path.Combine(extractDir, "BarTend.exe");
+                    string targetExe = @"C:\Program Files (x86)\Seagull\BarTender Suite\BarTend.exe";
+
+                    if (File.Exists(patchedExe))
+                    {
+                        try
+                        {
+                            var processes = Process.GetProcessesByName("BarTend");
+                            foreach (var proc in processes)
+                            {
+                                proc.Kill();
+                                proc.WaitForExit();
+                            }
+
+                            if (File.Exists(targetExe))
+                            {
+                                File.Copy(targetExe, targetExe + ".backup", true);
+                                Log("   [BACKUP] Original BarTend.exe backed up.");
+                            }
+
+                            File.Copy(patchedExe, targetExe, true);
+                            Log("   [SUCCESS] BarTend.exe replaced successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [ERROR] Failed to replace BarTend.exe: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        Log("   [WARN] Patched BarTend.exe not found in extracted folder.");
+                    }
+                }
             }
             else
             {
@@ -1239,14 +1325,12 @@ Require all granted
             if (File.Exists(btZip))
             {
                 Log("   [DEPLOY] Setting up Bartender Templates...");
-
                 try
                 {
                     if (Directory.Exists(templatesDest))
                         Directory.Delete(templatesDest, true);
 
                     Directory.CreateDirectory(templatesDest);
-
                     await Task.Run(() => ZipFile.ExtractToDirectory(btZip, templatesDest));
                     Log($"   [SUCCESS] Templates extracted to {templatesDest}");
                 }
@@ -1259,7 +1343,6 @@ Require all granted
             {
                 Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
-            IncrementProgress();
         }
         private void EnsureWpsShortcutsForAllUsers()
         {
@@ -1329,6 +1412,39 @@ Require all granted
             };
             using var p = Process.Start(psi);
             p?.WaitForExit(5000);
+        }
+
+        private async Task InstallWampVersion(IEnumerable<string> selectedApps)
+        {
+            string? selectedVersion = null;
+            if (selectedApps.Contains("Wamp 1.7.2")) selectedVersion = "Wamp 1.7.2";
+            else if (selectedApps.Contains("Wamp 2")) selectedVersion = "Wamp 2";
+            else if (selectedApps.Contains("Wamp 2.5")) selectedVersion = "Wamp 2.5";
+            else if (selectedApps.Contains("Wampserver 3.4.0")) selectedVersion = "Wampserver 3.4.0";
+
+            if (string.IsNullOrEmpty(selectedVersion))
+            {
+                Log("   [SKIP] No Wamp version selected.");
+                return;
+            }
+
+            Log($"   [INIT] Installing {selectedVersion}...");
+
+            switch (selectedVersion)
+            {
+                case "Wamp 1.7.2":
+                    await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "WampServer");
+                    break;
+                case "Wamp 2":
+                    await SmartInstall("WampServer 2", "wamp2.exe", "/S", "WampServer");
+                    break;
+                case "Wamp 2.5":
+                    await SmartInstall("WampServer 2.5", "wamp2.5.exe", "/S", "WampServer");
+                    break;
+                case "Wampserver 3.4.0":
+                    await InstallWampServer();
+                    break;
+            }
         }
     }
 }

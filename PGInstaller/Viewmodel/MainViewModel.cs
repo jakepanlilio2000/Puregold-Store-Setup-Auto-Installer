@@ -50,7 +50,7 @@ namespace PGInstaller.Viewmodel
         private string _manifestSearchText = "";
 
         public ICollectionView FilteredPreviewList { get; private set; }
-        public ObservableCollection<InstallAppItem> PreviewList { get; } = [];
+        public ObservableCollection<InstallAppItem> PreviewList { get; } = new ObservableCollection<InstallAppItem>();
 
         private string? _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
@@ -73,9 +73,8 @@ namespace PGInstaller.Viewmodel
 
         public MainViewModel()
         {
-            SelectedDepartment = "IT";
-
             PreviewList.CollectionChanged += PreviewList_CollectionChanged;
+            SelectedDepartment = "IT";
 
             Log("Welcome to PG Installer. Select a department to begin.");
             _ = CheckDefender();
@@ -178,24 +177,73 @@ namespace PGInstaller.Viewmodel
         }
         private void PreviewList_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (e.OldItems != null)
-            {
-                foreach (InstallAppItem item in e.OldItems)
-                    item.PropertyChanged -= Item_PropertyChanged;
-            }
             if (e.NewItems != null)
             {
                 foreach (InstallAppItem item in e.NewItems)
+                {
                     item.PropertyChanged += Item_PropertyChanged;
+                }
+            }
+
+            if (e.OldItems != null)
+            {
+                foreach (InstallAppItem item in e.OldItems)
+                {
+                    item.PropertyChanged -= Item_PropertyChanged;
+                }
             }
             UpdatePendingTasksCount();
         }
 
+
         private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(InstallAppItem.IsChecked))
+            if (e.PropertyName == nameof(InstallAppItem.IsChecked) && sender is InstallAppItem changedItem)
             {
                 UpdatePendingTasksCount();
+                if (changedItem.IsChecked)
+                {
+                    EnforceMutualExclusivity(changedItem);
+                }
+            }
+        }
+
+        private void EnforceMutualExclusivity(InstallAppItem checkedItem)
+        {
+            string[] bartenderVersions = { "Bartender 10.1", "Bartender 2016", "Bartender 2022" };
+            string[] bartenderDrivers = { "Argox Driver", "Zebra Driver" };
+            string[] wampVersions = { "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0" };
+
+
+            if (bartenderVersions.Contains(checkedItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (bartenderVersions.Contains(item.Name) && item != checkedItem && item.IsChecked)
+                    {
+                        item.IsChecked = false;
+                    }
+                }
+            }
+            else if (bartenderDrivers.Contains(checkedItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (bartenderDrivers.Contains(item.Name) && item != checkedItem && item.IsChecked)
+                    {
+                        item.IsChecked = false;
+                    }
+                }
+            }
+            else if (wampVersions.Contains(checkedItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (wampVersions.Contains(item.Name) && item != checkedItem && item.IsChecked)
+                    {
+                        item.IsChecked = false;
+                    }
+                }
             }
         }
 
@@ -388,9 +436,9 @@ namespace PGInstaller.Viewmodel
             if (selectedApps.Contains("WinRAR"))
                 await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
             if (selectedApps.Contains("Revo Uninstaller Pro"))
-                await SmartInstall("Revo Uninstaller", "Revo.exe", "/S", "Revo Uninstaller");
+                await SmartInstall("Revo Uninstaller", "revo.exe", "/S /EI", "Revo Uninstaller");
             if (selectedApps.Contains("IObit Driver Booster"))
-                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /I", "Driver Booster");
+                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /EI", "Driver Booster");
             if (selectedApps.Contains("Notepad++"))
                 await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
             if (selectedApps.Contains("Mozilla Thunderbird"))

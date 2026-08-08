@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Configuration"
     Width="450"
-    Height="220"
+    Height="AUTO"
     AllowsTransparency="True"
     Background="Transparent"
     ResizeMode="NoResize"

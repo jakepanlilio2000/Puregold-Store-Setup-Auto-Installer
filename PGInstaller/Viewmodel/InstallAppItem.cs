@@ -5,15 +5,15 @@ namespace PGInstaller.Viewmodel
     public partial class InstallAppItem : ObservableObject
     {
         [ObservableProperty]
-        private string _name;
+        private string _name = string.Empty;
 
         [ObservableProperty]
         private bool _isChecked;
 
-        public InstallAppItem(string name, bool isChecked)
+        public InstallAppItem(string name, bool isChecked = false)
         {
-            _name = name;
-            _isChecked = isChecked;
+            Name = name;
+            IsChecked = isChecked;
         }
     }
 }

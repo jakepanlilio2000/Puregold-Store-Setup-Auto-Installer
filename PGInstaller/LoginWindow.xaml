@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Authentication Required"
     Width="420"
-    Height="340"
+    Height="350"
     AllowsTransparency="True"
     Background="Transparent"
     ResizeMode="NoResize"
