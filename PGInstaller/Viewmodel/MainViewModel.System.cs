@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -13,55 +14,55 @@ namespace PGInstaller.Viewmodel
     {
         private async Task<bool> HandleComputerRenameAsync()
         {
-            if (IsDomainJoined())
+            string currentName = Environment.MachineName;
+            bool isDefaultName = Regex.IsMatch(currentName, @"^(DESKTOP-[A-Z0-9]{7}|WIN-[A-Z0-9]{4,})$", RegexOptions.IgnoreCase);
+
+            if (!isDefaultName)
             {
-                Log("   [INFO] Computer is already domain-joined. Skipping local rename prompt.");
+                Log($"   [INFO] Computer name is already customized ('{currentName}'). Skipping rename prompt.");
                 return true;
             }
 
-            string currentName = Environment.MachineName;
-            string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog($"Current Computer Name: {currentName}\n\nEnter new computer name (leave blank to skip):", currentName));
+            var result = MessageBox.Show(
+                $"This computer has a default name: '{currentName}'.\n\nWould you like to rename it now?",
+                "Computer Rename",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
 
-            if (!string.IsNullOrWhiteSpace(newName) && !newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
+            if (result == MessageBoxResult.Yes)
             {
-                if (newName.Length > 15 || newName.Contains(' ') || newName.Contains('\\') || newName.Contains('/'))
-                {
-                    MessageBox.Show("Computer name cannot exceed 15 characters and must not contain spaces or special characters (\\ /).", "Invalid Name", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return false;
-                }
+                string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter new computer name:", currentName));
 
-                Log($"   [CONFIG] Renaming computer from '{currentName}' to '{newName}'...");
-
-                try
+                if (!string.IsNullOrWhiteSpace(newName) && newName != currentName)
                 {
-                    using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem");
-                    foreach (ManagementObject computer in searcher.Get().Cast<ManagementObject>())
+                    Log($"   [INIT] Renaming computer to '{newName}'...");
+                    try
                     {
-                        var result = computer.InvokeMethod("Rename", [newName, null!, null!]);
-                        int returnCode = Convert.ToInt32(result);
+                        await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer", true);
 
-                        if (returnCode == 0)
+                        var restart = MessageBox.Show(
+                            "A restart is required to apply the new computer name.\n\nRestart now?",
+                            "Restart Required",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Information);
+
+                        if (restart == MessageBoxResult.Yes)
                         {
-                            Log("   [SUCCESS] Computer renamed successfully. A reboot is required.");
-                            var rebootResult = MessageBox.Show("Computer renamed successfully. A restart is required for the new name to take effect.\n\nRestart now?", "Restart Required", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                            if (rebootResult == MessageBoxResult.Yes)
+                            Process.Start(new ProcessStartInfo
                             {
-                                Process.Start(new ProcessStartInfo { FileName = "shutdown.exe", Arguments = "/r /t 0 /c \"Restarting to apply computer name\"", UseShellExecute = false });
-                                Application.Current.Shutdown();
-                                return false; 
-                            }
+                                FileName = "shutdown.exe",
+                                Arguments = "/r /t 0",
+                                CreateNoWindow = true,
+                                UseShellExecute = false
+                            });
+                            return false; 
                         }
-                        else
-                        {
-                            Log($"   [ERROR] Failed to rename computer. Return code: {returnCode}");
-                        }
-                        break;
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log($"   [ERROR] Rename failed: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Failed to rename computer: {ex.Message}");
+                    }
                 }
             }
             return true;

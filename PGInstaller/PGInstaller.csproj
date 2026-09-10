@@ -20,9 +20,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.10" />
-		<PackageReference Include="System.Management" Version="10.0.10" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.12" />
+		<PackageReference Include="System.Management" Version="10.0.12" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -2,8 +2,10 @@
 using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.Management;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -105,62 +107,95 @@ namespace PGInstaller.Viewmodel
 
         private async Task<bool> HandleDomainJoinAsync()
         {
-            if (IsDomainJoined())
+            try
             {
-                Log("   [INFO] Machine is already joined to the domain.");
-                return true;
-            }
+                var properties = IPGlobalProperties.GetIPGlobalProperties();
 
-            Log("   [WARN] Machine is NOT joined to the domain.");
-            var result = MessageBox.Show(
-                "This computer is not currently joined to the company domain.\n\n" +
-                "Department package installation is recommended after joining the domain.\n\n" +
-                "Would you like to join the domain now?",
-                "Domain Membership Check",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.No)
-            {
-                Log("   [WARN] Skipping domain join. Some configurations may not apply.");
-                return true;
-            }
-
-            if (result == MessageBoxResult.Cancel)
-            {
-                Log("   [INFO] Installation cancelled by user.");
-                return false;
-            }
-
-            var joinWindow = new DomainJoinWindow { Owner = Application.Current.MainWindow, JoinAction = JoinDomainAsync };
-            bool? dialogResult = joinWindow.ShowDialog();
-
-            if (dialogResult == true)
-            {
-                Log("   [SUCCESS] Domain join process completed.");
-
-                var rebootResult = MessageBox.Show(
-                    "Domain join was successful, but a system restart is required to apply changes.\n\n" +
-                    "Would you like to restart now? (Installation will resume after reboot)",
-                    "Restart Required",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Information);
-
-                if (rebootResult == MessageBoxResult.Yes)
+                if (!string.IsNullOrEmpty(properties.DomainName) &&
+                    !properties.DomainName.Equals(properties.HostName, StringComparison.OrdinalIgnoreCase))
                 {
-                    Log("   [REBOOT] Restarting system to apply domain changes...");
-                    Process.Start(new ProcessStartInfo { FileName = "shutdown.exe", Arguments = "/r /t 0 /c \"Restarting to apply domain changes\"", UseShellExecute = false });
-                    Application.Current.Shutdown();
-                    return false;
+                    Log($"   [INFO] Computer is already joined to domain: '{properties.DomainName}'. Skipping domain join prompt.");
+                    return true;
+                }
+            }
+            catch
+            {
+
+            }
+
+            if (JoinDomainAfterInstall)
+            {
+                string domainName = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter Domain Name (e.g., corp.local):", ""));
+
+                string domainUser = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter Domain Admin Username:", "Administrator"));
+
+                string domainPassword = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter Domain Admin Password:", ""));
+
+                if (string.IsNullOrWhiteSpace(domainName) || string.IsNullOrWhiteSpace(domainUser))
+                {
+                    Log("   [WARN] Domain join cancelled or incomplete.");
+                    return true; 
+                }
+
+                Log($"   [INIT] Joining domain: {domainName}...");
+
+                string script = $@"
+$domain = '{domainName}'
+$username = '{domainName}\{domainUser}'
+$password = ConvertTo-SecureString '{domainPassword}' -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential($username, $password)
+
+try {{
+    Add-Computer -DomainName $domain -Credential $credential -Force -ErrorAction Stop
+    Write-Host 'Successfully joined the domain.'
+}} catch {{
+    Write-Error $_.Exception.Message
+    exit 1
+}}
+";
+                byte[] scriptBytes = Encoding.Unicode.GetBytes(script);
+                string encodedScript = Convert.ToBase64String(scriptBytes);
+
+                bool success = await RunProcessAsync(
+                    "powershell",
+                    $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
+                    "Joining Domain",
+                    true);
+
+                if (success)
+                {
+                    Log("   [SUCCESS] Successfully joined the domain.");
+                    var restart = MessageBox.Show(
+                        "A restart is required to complete the domain join and apply Group Policies.\n\nRestart now?",
+                        "Restart Required",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information);
+
+                    if (restart == MessageBoxResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "shutdown.exe",
+                            Arguments = "/r /t 0",
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        });
+                        return false; 
+                    }
                 }
                 else
                 {
-                    Log("   [WARN] Restart postponed. Please restart manually before proceeding with installation.");
-                    return false; 
+                    Log("   [ERROR] Failed to join the domain. Check credentials and network connectivity.");
                 }
             }
+            else
+            {
+                Log("   [INFO] Domain join skipped (checkbox unchecked or already joined).");
+            }
 
-            Log("   [WARN] Domain join window closed without completing.");
             return true;
         }
     }

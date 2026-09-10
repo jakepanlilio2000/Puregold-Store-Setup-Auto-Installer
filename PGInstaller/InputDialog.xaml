@@ -4,10 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Configuration"
     Width="450"
-    Height="AUTO"
     AllowsTransparency="True"
     Background="Transparent"
     ResizeMode="NoResize"
+    SizeToContent="Height"
     WindowStartupLocation="CenterOwner"
     WindowStyle="None">
 
@@ -17,6 +17,21 @@
         BorderThickness="1"
         CornerRadius="16"
         Effect="{StaticResource SoftShadow}">
+
+        <Border.Triggers>
+            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                        <DoubleAnimation
+                            Storyboard.TargetProperty="Opacity"
+                            From="0"
+                            To="1"
+                            Duration="0:0:0.3" />
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Border.Triggers>
+
         <Grid Margin="32">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -24,7 +39,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--  Question Text  -->
+            <!--  Question  -->
             <TextBlock
                 x:Name="TxtQuestion"
                 Grid.Row="0"
@@ -34,14 +49,14 @@
                 Text="Configuration"
                 TextWrapping="Wrap" />
 
-            <!--  Input Field  -->
+            <!--  Input  -->
             <TextBox
                 x:Name="TxtAnswer"
                 Grid.Row="1"
                 Margin="0,0,0,24"
                 Style="{StaticResource ModernTextBox}" />
 
-            <!--  Action Buttons  -->
+            <!--  Buttons  -->
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -49,7 +64,6 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!--  IsDefault="True" allows pressing Enter to trigger this button  -->
                 <Button
                     x:Name="BtnOk"
                     Grid.Column="1"
@@ -61,7 +75,6 @@
                     IsDefault="True"
                     Style="{StaticResource PrimaryButton}" />
 
-                <!--  IsCancel="True" allows pressing Esc to trigger this button  -->
                 <Button
                     x:Name="BtnCancel"
                     Grid.Column="2"
@@ -74,19 +87,5 @@
             </Grid>
         </Grid>
 
-        <!--  Smooth Fade-in Animation  -->
-        <Border.Triggers>
-            <EventTrigger RoutedEvent="Window.Loaded">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation
-                            Storyboard.TargetProperty="Opacity"
-                            From="0"
-                            To="1"
-                            Duration="0:0:0.3" />
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
-        </Border.Triggers>
     </Border>
 </Window>

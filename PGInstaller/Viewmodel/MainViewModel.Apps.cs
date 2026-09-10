@@ -4,8 +4,6 @@ using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Windows;
-using System.Windows.Controls;
-using System.Linq;
 
 namespace PGInstaller.Viewmodel
 {
@@ -15,11 +13,28 @@ namespace PGInstaller.Viewmodel
         {
             if (!IsAppInstalled("IBM Personal Communications"))
             {
-                await InstallZipPackage("mms2.zip", "cwblaunch.exe", "", "iSeries Access");
+                try
+                {
+                    using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
+                    {
+                        sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
+                    }
 
+                    using (var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true))
+                    {
+                        wu?.DeleteSubKey("RebootRequired", false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
+                }
+
+                string silentArgs = "/S /L1033 /v\"/qn /norestart\"";
+                await InstallZipPackage("mms.zip", "setup.exe", silentArgs, "iSeries Access");
                 string mmsFileName = "MMS.ws";
                 string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
-  
+
                 string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
                 string mmsDest = Path.Combine(publicDesktop, mmsFileName);
 
@@ -49,7 +64,11 @@ namespace PGInstaller.Viewmodel
                     catch (Exception ex) { Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}"); }
                 }
             }
-            else { Log("   [SKIP] MMS (IBM Personal Communications) is already installed."); }
+            else
+            {
+                Log("   [SKIP] MMS (IBM Personal Communications) is already installed.");
+            }
+
             IncrementProgress();
         }
 
@@ -1230,6 +1249,7 @@ Require all granted
             if (selectedApps.Contains("Bartender 10.1"))
             {
                 selectedVersion = "Bartender 10.1";
+
                 installerExe = "bt10.1.exe";
             }
             else if (selectedApps.Contains("Bartender 2016"))
