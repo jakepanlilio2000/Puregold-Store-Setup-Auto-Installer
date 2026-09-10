@@ -611,6 +611,7 @@ Require all granted
                 Log("   [ERROR] pims.zip not found in Assets.");
                 return;
             }
+
             if (!Directory.Exists(pimsRoot))
             {
                 Log("   [INIT] Extracting pims.zip...");
@@ -625,29 +626,39 @@ Require all granted
                     return;
                 }
             }
-
-            string crDir = Path.Combine(pimsRoot, "CR10");
-            string crSetup = Path.Combine(crDir, "CR10_Autorun_ENPRO.exe");
-
-            if (VerifyFile(crSetup))
+            try
             {
-                string serialPath = Path.Combine(crDir, "Serial Number.txt");
-                if (File.Exists(serialPath))
+                using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
                 {
-                    Log("   [INFO] Launching Serial Number.txt...");
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo { FileName = serialPath, UseShellExecute = true });
-                    }
-                    catch (Exception ex) { Log($"   [WARN] Could not open serial file: {ex.Message}"); }
+                    sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
                 }
-                await RunProcessAsync(crSetup, "", "Installing Crystal Reports 8.5/10");
+                using (var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true))
+                {
+                    wu?.DeleteSubKey("RebootRequired", false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
+            }
+            string crDir = Path.Combine(pimsRoot, "CR10");
+            string crMsi = Path.Combine(crDir, "scrent.msi");
+
+            if (VerifyFile(crMsi))
+            {
+                string crKey = "AV860-010S000-00000YV";
+                string crArgs = $"/i \"{crMsi}\" PIDKEY=\"{crKey}\" ROOTDRIVE=\"C:\\\" /qn /norestart";
+                await RunProcessAsync("msiexec.exe", crArgs, "Installing Crystal Reports 10 Enterprise");
+            }
+            else
+            {
+                Log($"   [WARN] scrent.msi not found at {crMsi}");
             }
 
             string crRedist86 = Path.Combine(pimsRoot, "CRRedist2005_x86.msi");
             if (VerifyFile(crRedist86))
             {
-                await RunProcessAsync("msiexec.exe", $"/i \"{crRedist86}\" /qn", "Installing CR Redist 2005 (x86)");
+                await RunProcessAsync("msiexec.exe", $"/i \"{crRedist86}\" /qn /norestart", "Installing CR Redist 2005 (x86)");
             }
 
             if (Environment.Is64BitOperatingSystem)
@@ -655,14 +666,13 @@ Require all granted
                 string crRedist64 = Path.Combine(pimsRoot, "CRRedist2005_X64.msi");
                 if (VerifyFile(crRedist64))
                 {
-                    await RunProcessAsync("msiexec.exe", $"/i \"{crRedist64}\" /qn", "Installing CR Redist 2005 (x64)");
+                    await RunProcessAsync("msiexec.exe", $"/i \"{crRedist64}\" /qn /norestart", "Installing CR Redist 2005 (x64)");
                 }
             }
-
             string poMsi = Path.Combine(pimsRoot, "POTracking", "POTracking.msi");
             if (VerifyFile(poMsi))
             {
-                await RunProcessAsync("msiexec.exe", $"/i \"{poMsi}\" /qn", "Installing POTracking");
+                await RunProcessAsync("msiexec.exe", $"/i \"{poMsi}\" ALLUSERS=1 /qn /norestart", "Installing POTracking");
             }
 
             string sqlDir = Path.Combine(pimsRoot, "SQLServer2005");
@@ -672,7 +682,7 @@ Require all granted
 
             if (VerifyFile(sqlMsi))
             {
-                await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\"", "Installing SQL Server 2005 BC");
+                await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\" ALLUSERS=1 /qn /norestart", "Installing SQL Server 2005 BC");
             }
 
             string fmsSource = Path.Combine(pimsRoot, "FMS");
@@ -721,6 +731,7 @@ Require all granted
             {
                 Log("   [WARN] IP Address input cancelled. Registry not updated.");
             }
+
             IncrementProgress();
         }
 
