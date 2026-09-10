@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.Management;
@@ -105,6 +106,45 @@ namespace PGInstaller.Viewmodel
             };
         }
 
+        [RelayCommand]
+        private async Task RenameComputer()
+        {
+            string currentName = Environment.MachineName;
+            string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter new computer name:", currentName));
+
+            if (!string.IsNullOrWhiteSpace(newName) && newName != currentName)
+            {
+                Log($"   [INIT] Renaming computer to '{newName}'...");
+                try
+                {
+                    // WMIC is universally supported for renaming in Windows
+                    await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer", true);
+
+                    var restart = MessageBox.Show(
+                        "A restart is required to apply the new computer name.\n\nRestart now?",
+                        "Restart Required",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information);
+
+                    if (restart == MessageBoxResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "shutdown.exe",
+                            Arguments = "/r /t 0",
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to rename computer: {ex.Message}");
+                }
+            }
+
+        }
         private async Task<bool> HandleDomainJoinAsync()
         {
             try
@@ -198,5 +238,74 @@ try {{
 
             return true;
         }
+        [RelayCommand]
+        private async Task JoinDomain()
+        {
+            string domainName = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Domain Name (e.g., corp.local):", ""));
+
+            string domainUser = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Domain Admin Username:", "Administrator"));
+
+            string domainPassword = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Domain Admin Password:", ""));
+
+            if (string.IsNullOrWhiteSpace(domainName) || string.IsNullOrWhiteSpace(domainUser))
+            {
+                Log("   [WARN] Domain join cancelled or incomplete.");
+                return;
+            }
+
+            Log($"   [INIT] Joining domain: {domainName}...");
+
+            string script = $@"
+$domain = '{domainName}'
+$username = '{domainName}\{domainUser}'
+$password = ConvertTo-SecureString '{domainPassword}' -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential($username, $password)
+
+try {{
+    Add-Computer -DomainName $domain -Credential $credential -Force -ErrorAction Stop
+    Write-Host 'Successfully joined the domain.'
+}} catch {{
+    Write-Error $_.Exception.Message
+    exit 1
+}}
+";
+            byte[] scriptBytes = Encoding.Unicode.GetBytes(script);
+            string encodedScript = Convert.ToBase64String(scriptBytes);
+
+            bool success = await RunProcessAsync(
+                "powershell",
+                $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
+                "Joining Domain",
+                true);
+
+            if (success)
+            {
+                Log("   [SUCCESS] Successfully joined the domain.");
+                var restart = MessageBox.Show(
+                    "A restart is required to complete the domain join and apply Group Policies.\n\nRestart now?",
+                    "Restart Required",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
+
+                if (restart == MessageBoxResult.Yes)
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "shutdown.exe",
+                        Arguments = "/r /t 0",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    });
+                }
+            }
+            else
+            {
+                Log("   [ERROR] Failed to join the domain. Check credentials and network connectivity.");
+            }
+        }
     }
+
 }

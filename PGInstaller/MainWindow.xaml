@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="clr-namespace:PGInstaller.Viewmodel"
-    Title="PG-AIO Installer v2.1"
+    Title="PG-AIO Installer v2.2"
     Width="1200"
     Height="850"
     MinWidth="1000"
@@ -342,6 +342,56 @@
                             Content="APPLY CONFIG"
                             Style="{StaticResource SecondaryButton}" />
                     </StackPanel>
+                </Border>
+
+                <!--  System Configuration  -->
+                <TextBlock
+                    Margin="0,0,0,12"
+                    Style="{StaticResource OverlineStyle}"
+                    Text="SYSTEM CONFIGURATION" />
+                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
+                    <WrapPanel>
+                        <Button
+                            Width="200"
+                            Height="80"
+                            Margin="0,0,16,16"
+                            Command="{Binding RenameComputerCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="&#xE77B;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="Rename Computer" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Width="200"
+                            Height="80"
+                            Margin="0,0,16,16"
+                            Command="{Binding JoinDomainCommand}"
+                            Style="{StaticResource SecondaryButton}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="28"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="&#xE90B;" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="Join Domain" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
                 </Border>
 
                 <!--  Quick Actions  -->
@@ -748,7 +798,7 @@
                     <TextBlock
                         HorizontalAlignment="Center"
                         Style="{StaticResource CaptionStyle}"
-                        Text="Developed by Jake Ashley Panlilio IT" />
+                        Text="Developed by Jake Ashley Panlilio IT - SAN FERNANDO (722)" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

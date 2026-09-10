@@ -20,10 +20,8 @@ namespace PGInstaller.Viewmodel
                         sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
                     }
 
-                    using (var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true))
-                    {
-                        wu?.DeleteSubKey("RebootRequired", false);
-                    }
+                    using var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true);
+                    wu?.DeleteSubKey("RebootRequired", false);
                 }
                 catch (Exception ex)
                 {
@@ -632,10 +630,8 @@ Require all granted
                 {
                     sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
                 }
-                using (var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true))
-                {
-                    wu?.DeleteSubKey("RebootRequired", false);
-                }
+                using var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true);
+                wu?.DeleteSubKey("RebootRequired", false);
             }
             catch (Exception ex)
             {

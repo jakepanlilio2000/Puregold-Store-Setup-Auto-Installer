@@ -49,8 +49,11 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty]
         private string _manifestSearchText = "";
 
+        [ObservableProperty]
+        private bool _joinDomainAfterInstall;
+
         public ICollectionView FilteredPreviewList { get; private set; }
-        public ObservableCollection<InstallAppItem> PreviewList { get; } = new ObservableCollection<InstallAppItem>();
+        public ObservableCollection<InstallAppItem> PreviewList { get; } = [];
 
         private string? _assetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
 
@@ -210,9 +213,9 @@ namespace PGInstaller.Viewmodel
 
         private void EnforceMutualExclusivity(InstallAppItem checkedItem)
         {
-            string[] bartenderVersions = { "Bartender 10.1", "Bartender 2016", "Bartender 2022" };
-            string[] bartenderDrivers = { "Argox Driver", "Zebra Driver" };
-            string[] wampVersions = { "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0" };
+            string[] bartenderVersions = ["Bartender 10.1", "Bartender 2016", "Bartender 2022"];
+            string[] bartenderDrivers = ["Argox Driver", "Zebra Driver"];
+            string[] wampVersions = ["Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0"];
 
 
             if (bartenderVersions.Contains(checkedItem.Name))
