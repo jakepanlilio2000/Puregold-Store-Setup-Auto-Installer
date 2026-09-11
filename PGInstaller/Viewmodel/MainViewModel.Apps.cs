@@ -11,65 +11,81 @@ namespace PGInstaller.Viewmodel
     {
         private async Task InstallMMS()
         {
-            if (!IsAppInstalled("IBM Personal Communications"))
+            string checkAppName = "IBM i Access for Windows 7.1";
+
+            try
             {
+                using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
+                {
+                    sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
+                }
+
+                using (var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true))
+                {
+                    wu?.DeleteSubKey("RebootRequired", false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
+            }
+
+            string mmsZip = Path.Combine(_assetsPath!, "mms.zip");
+            string mmsExtractedDir = Path.Combine(_assetsPath!, "mms");
+
+            if (File.Exists(mmsZip) && !Directory.Exists(mmsExtractedDir))
+            {
+                Log("   [INIT] Extracting mms.zip...");
                 try
                 {
-                    using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
-                    {
-                        sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
-                    }
-
-                    using var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true);
-                    wu?.DeleteSubKey("RebootRequired", false);
+                    Directory.CreateDirectory(mmsExtractedDir);
+                    await Task.Run(() => ZipFile.ExtractToDirectory(mmsZip, mmsExtractedDir));
                 }
                 catch (Exception ex)
                 {
-                    Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
-                }
-
-                string silentArgs = "/S /L1033 /v\"/qn /norestart\"";
-                await InstallZipPackage("mms.zip", "setup.exe", silentArgs, "iSeries Access");
-                string mmsFileName = "MMS.ws";
-                string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
-
-                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-                string mmsDest = Path.Combine(publicDesktop, mmsFileName);
-
-                if (File.Exists(mmsSource))
-                {
-                    if (!File.Exists(mmsDest))
-                    {
-                        try
-                        {
-                            File.Copy(mmsSource, mmsDest);
-                            Log($"   [COPY] Copied {mmsFileName} to All Users Desktop.");
-                        }
-                        catch (Exception ex) { Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}"); }
-                    }
-                }
-
-                string kmpFileName = "AS400.KMP";
-                string kmpSource = Path.Combine(_assetsPath!, kmpFileName);
-                string kmpDest = @"C:\AS400.KMP";
-                if (File.Exists(kmpSource))
-                {
-                    try
-                    {
-                        File.Copy(kmpSource, kmpDest, true);
-                        Log($"   [COPY] Copied {kmpFileName} to C:\\.");
-                    }
-                    catch (Exception ex) { Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}"); }
+                    Log($"   [ERROR] Failed to extract mms.zip: {ex.Message}");
                 }
             }
-            else
+            string relativeMsi = @"mms\image64a\cwbinstall.msi";
+            string fullMstPath = Path.Combine(_assetsPath!, @"mms\image64a\1033.mst");
+            string msiArgs = $"TRANSFORMS=\"{fullMstPath}\" /qn /norestart";
+
+            await SmartInstall("IBM i Access 7.1", relativeMsi, msiArgs, checkAppName);
+
+            string mmsFileName = "MMS.ws";
+            string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
+            string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+            string mmsDest = Path.Combine(publicDesktop, mmsFileName);
+
+            if (File.Exists(mmsSource) && !File.Exists(mmsDest))
             {
-                Log("   [SKIP] MMS (IBM Personal Communications) is already installed.");
+                try
+                {
+                    File.Copy(mmsSource, mmsDest);
+                    Log($"   [COPY] Copied {mmsFileName} to All Users Desktop.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}");
+                }
             }
+            string kmpFileName = "AS400.KMP";
+            string kmpSource = Path.Combine(_assetsPath!, kmpFileName);
+            string kmpDest = @"C:\AS400.KMP";
 
-            IncrementProgress();
+            if (File.Exists(kmpSource))
+            {
+                try
+                {
+                    File.Copy(kmpSource, kmpDest, true);
+                    Log($"   [COPY] Copied {kmpFileName} to C:\\.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to copy {kmpFileName}: {ex.Message}");
+                }
+            }
         }
-
         private async Task ApplyRadminServer()
         {
             string installBatPath = Path.Combine(_assetsPath!, "install.bat");
@@ -272,14 +288,17 @@ namespace PGInstaller.Viewmodel
                 Log($"   [ERROR] {exeName} not found in Assets.");
                 return;
             }
+            if (string.IsNullOrEmpty(_sharedDatabaseIp))
+            {
+                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter Database IP / Host for A&VGW:", "192.92.1.100")
+                );
+            }
 
-            Log("   [CONFIG] Requesting A&VGW Configuration...");
-            string dbHost = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Database IP / Host for A&VGW:", "192.92.1.100")
-            );
             string storeNum = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter Default Store Number for A&VGW:", "722")
             );
+
             string fallbackStore = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter Fallback Store Name for A&VGW:", "PUREGOLD SAN FERNANDO")
             );
@@ -301,13 +320,13 @@ namespace PGInstaller.Viewmodel
                 }
             }
 
-            if (configPath != null && File.Exists(configPath))
+            if (configPath != null && File.Exists(configPath) && !string.IsNullOrWhiteSpace(_sharedDatabaseIp))
             {
                 try
                 {
                     string json = File.ReadAllText(configPath);
 
-                    json = Regex.Replace(json, @"""DbHost""\s*:\s*""[^""]*""", $"\"DbHost\": \"{dbHost}\"");
+                    json = Regex.Replace(json, @"""DbHost""\s*:\s*""[^""]*""", $"\"DbHost\": \"{_sharedDatabaseIp}\"");
                     json = Regex.Replace(json, @"""DefaultStoreNum""\s*:\s*""[^""]*""", $"\"DefaultStoreNum\": \"{storeNum}\"");
                     json = Regex.Replace(json, @"""FallbackStoreName""\s*:\s*""[^""]*""", $"\"FallbackStoreName\": \"{fallbackStore}\"");
 
@@ -321,8 +340,9 @@ namespace PGInstaller.Viewmodel
             }
             else
             {
-                Log($"   [WARN] config.json not found. It may be installed in a non-standard directory.");
+                Log($"   [WARN] config.json not found or IP was cancelled. It may be installed in a non-standard directory.");
             }
+
             IncrementProgress();
         }
 
@@ -624,6 +644,7 @@ Require all granted
                     return;
                 }
             }
+
             try
             {
                 using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
@@ -637,6 +658,7 @@ Require all granted
             {
                 Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
             }
+
             string crDir = Path.Combine(pimsRoot, "CR10");
             string crMsi = Path.Combine(crDir, "scrent.msi");
 
@@ -665,6 +687,7 @@ Require all granted
                     await RunProcessAsync("msiexec.exe", $"/i \"{crRedist64}\" /qn /norestart", "Installing CR Redist 2005 (x64)");
                 }
             }
+
             string poMsi = Path.Combine(pimsRoot, "POTracking", "POTracking.msi");
             if (VerifyFile(poMsi))
             {
@@ -704,19 +727,22 @@ Require all granted
                 Log($"   [ERROR] Source FMS folder not found at {fmsSource}");
             }
 
-            Log("   [CONFIG] Requesting IP Address...");
+            Log("   [CONFIG] Requesting Server IP Address...");
 
-            string ipAddress = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Server IP Address config for FIDB and FIHO (PIMS SETUP):", "192.92.1.100")
-            );
+            if (string.IsNullOrEmpty(_sharedDatabaseIp))
+            {
+                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    ShowInputDialog("Enter Server IP Address config for FIDB, FIHO (PIMS), and A&VGW:", "192.92.1.100")
+                );
+            }
 
-            if (!string.IsNullOrWhiteSpace(ipAddress))
+            if (!string.IsNullOrWhiteSpace(_sharedDatabaseIp))
             {
                 try
                 {
-                    ConfigurePimsRegistry("FIHO", ipAddress);
-                    ConfigurePimsRegistry("FIDB", ipAddress);
-                    Log("   [SUCCESS] Registry Configuration Applied.");
+                    ConfigurePimsRegistry("FIHO", _sharedDatabaseIp);
+                    ConfigurePimsRegistry("FIDB", _sharedDatabaseIp);
+                    Log("   [SUCCESS] PIMS Registry Configuration Applied.");
                 }
                 catch (Exception ex)
                 {

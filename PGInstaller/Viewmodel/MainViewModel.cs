@@ -19,6 +19,7 @@ namespace PGInstaller.Viewmodel
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
+        private string? _sharedDatabaseIp;
         [ObservableProperty] private string? _logOutput;
         [ObservableProperty] private bool _isBusy;
         [ObservableProperty] private string? _selectedDepartment;

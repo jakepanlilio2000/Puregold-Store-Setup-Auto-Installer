@@ -27,7 +27,7 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="340" MinWidth="300" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -65,7 +65,7 @@
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="v2.0 Zone 11" />
+                                Text="v2.2 Zone 11" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -76,25 +76,43 @@
                         Margin="0,0,0,16"
                         Content="Create System Restore Point"
                         IsChecked="{Binding IsRestorePointEnabled}"
-                        Style="{StaticResource ModernCheckBox}" />
+                        Style="{StaticResource ModernCheckBox}"
+                        ToolTip="Creates a restore point before installation begins." />
                     <Button
                         Height="56"
                         HorizontalAlignment="Stretch"
                         Command="{Binding InstallCommand}"
                         Content="START INSTALLATION"
                         FontSize="16"
+                        FontWeight="SemiBold"
                         Style="{StaticResource PrimaryButton}" />
                 </StackPanel>
 
-                <!--  Middle: Scrollable Context  -->
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
-                    <StackPanel Margin="24,0,24,24">
+                <!--  Middle: Responsive Scrollable Context  -->
+                <ScrollViewer
+                    CanContentScroll="False"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="24,0,24,24">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <!--  System Info  -->
+                            <RowDefinition Height="Auto" />
+                            <!--  Department  -->
+                            <RowDefinition Height="Auto" />
+                            <!--  Search  -->
+                            <RowDefinition Height="*" />
+                            <!--  Manifest (Fills remaining space)  -->
+                        </Grid.RowDefinitions>
+
                         <!--  System Info  -->
                         <TextBlock
+                            Grid.Row="0"
                             Margin="0,0,0,12"
                             Style="{StaticResource OverlineStyle}"
                             Text="SYSTEM INFO" />
                         <Border
+                            Grid.Row="0"
                             Margin="0,0,0,24"
                             Padding="16"
                             Style="{StaticResource GlassCard}">
@@ -153,27 +171,30 @@
 
                         <!--  Department Selector  -->
                         <TextBlock
+                            Grid.Row="1"
                             Margin="0,0,0,12"
                             Style="{StaticResource OverlineStyle}"
                             Text="DEPARTMENT" />
                         <ComboBox
+                            Grid.Row="1"
                             Margin="0,0,0,24"
                             ItemsSource="{Binding Departments}"
                             SelectedItem="{Binding SelectedDepartment}"
                             Style="{StaticResource ModernComboBox}" />
-                        <Grid Margin="0,0,0,12">
+
+                        <!--  Search  -->
+                        <Grid Grid.Row="2" Margin="0,0,0,12">
                             <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
                                 </TextBox.InputBindings>
                             </TextBox>
-
                             <TextBlock
                                 Margin="12,0,0,0"
                                 VerticalAlignment="Center"
-                                Foreground="#888"
+                                Foreground="{StaticResource TextSecondaryBrush}"
                                 IsHitTestVisible="False"
-                                Text="Search...">
+                                Text="Search applications...">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -189,23 +210,23 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </Grid>
-                        <!--  Install Manifest  -->
+
+                        <!--  Install Manifest (Responsive: Fills remaining height)  -->
                         <TextBlock
+                            Grid.Row="3"
                             Margin="0,0,0,12"
                             Style="{StaticResource OverlineStyle}"
                             Text="INSTALLATION MANIFEST" />
-                        <Border
-                            MaxHeight="300"
-                            Padding="0"
-                            Style="{StaticResource GlassCard}">
+                        <Border Grid.Row="3" Style="{StaticResource GlassCard}">
                             <ListBox
                                 Background="Transparent"
                                 BorderThickness="0"
-                                ItemsSource="{Binding FilteredPreviewList}">
+                                ItemsSource="{Binding FilteredPreviewList}"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <CheckBox
-                                            Margin="16,8"
+                                            Margin="16,10"
                                             Content="{Binding Name}"
                                             IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
                                             Style="{StaticResource ModernCheckBox}" />
@@ -213,7 +234,7 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Border>
-                    </StackPanel>
+                    </Grid>
                 </ScrollViewer>
             </DockPanel>
         </Border>
@@ -223,6 +244,7 @@
         <!--  ==========================================  -->
         <ScrollViewer
             Grid.Column="1"
+            CanContentScroll="False"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="40">
@@ -261,8 +283,6 @@
                             <TextBlock Style="{StaticResource OverlineStyle}" Text="DOMAIN STATUS" />
                             <TextBlock
                                 Margin="0,8,0,0"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
                                 FontSize="15"
                                 FontWeight="Bold"
                                 Foreground="{StaticResource GoldBrush}"
@@ -298,11 +318,11 @@
                     </Border>
                 </Grid>
 
-                <!--  Network Configuration  -->
+                <!--  Network & System Configuration (Grouped)  -->
                 <TextBlock
                     Margin="0,0,0,12"
                     Style="{StaticResource OverlineStyle}"
-                    Text="NETWORK CONFIGURATION" />
+                    Text="SYSTEM &amp; NETWORK CONFIGURATION" />
                 <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
                     <StackPanel>
                         <Grid>
@@ -312,86 +332,101 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="16" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="32" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
+
                             <StackPanel Grid.Column="0">
                                 <TextBlock
                                     Margin="0,0,0,6"
                                     Style="{StaticResource CaptionStyle}"
                                     Text="IP Address" />
-                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetIp}" />
+                                <TextBox
+                                    Style="{StaticResource ModernTextBox}"
+                                    Text="{Binding TargetIp, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="e.g., 192.168.1.101" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock
                                     Margin="0,0,0,6"
                                     Style="{StaticResource CaptionStyle}"
                                     Text="Gateway" />
-                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetGateway}" />
+                                <TextBox
+                                    Style="{StaticResource ModernTextBox}"
+                                    Text="{Binding TargetGateway, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="e.g., 192.168.1.1" />
                             </StackPanel>
                             <StackPanel Grid.Column="4">
                                 <TextBlock
                                     Margin="0,0,0,6"
                                     Style="{StaticResource CaptionStyle}"
                                     Text="Primary DNS" />
-                                <TextBox Style="{StaticResource ModernTextBox}" Text="{Binding TargetDns}" />
+                                <TextBox
+                                    Style="{StaticResource ModernTextBox}"
+                                    Text="{Binding TargetDns, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="e.g., 192.168.1.100" />
                             </StackPanel>
-                        </Grid>
-                        <Button
-                            Margin="0,20,0,0"
-                            HorizontalAlignment="Left"
-                            Command="{Binding ChangeIpCommand}"
-                            Content="APPLY CONFIG"
-                            Style="{StaticResource SecondaryButton}" />
-                    </StackPanel>
-                </Border>
 
-                <!--  System Configuration  -->
-                <TextBlock
-                    Margin="0,0,0,12"
-                    Style="{StaticResource OverlineStyle}"
-                    Text="SYSTEM CONFIGURATION" />
-                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
-                    <WrapPanel>
-                        <Button
-                            Width="200"
-                            Height="80"
-                            Margin="0,0,16,16"
-                            Command="{Binding RenameComputerCommand}"
-                            Style="{StaticResource SecondaryButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock
+                            <Button
+                                Grid.Column="6"
+                                Width="140"
+                                Height="40"
+                                VerticalAlignment="Bottom"
+                                Command="{Binding ChangeIpCommand}"
+                                Content="APPLY NETWORK"
+                                Style="{StaticResource SecondaryButton}" />
+                        </Grid>
+
+                        <Separator Margin="0,24" Background="{StaticResource BorderBrush}" />
+
+                        <WrapPanel>
+                            <Button
+                                Width="180"
+                                Height="60"
+                                Margin="0,0,16,0"
+                                Command="{Binding RenameComputerCommand}"
+                                Style="{StaticResource SecondaryButton}">
+                                <StackPanel
                                     HorizontalAlignment="Center"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="28"
-                                    Foreground="{StaticResource PrimaryBrush}"
-                                    Text="&#xE77B;" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="20"
+                                        Foreground="{StaticResource PrimaryBrush}"
+                                        Text="&#xE77B;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Text="Rename PC" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                Width="180"
+                                Height="60"
+                                Command="{Binding JoinDomainCommand}"
+                                Style="{StaticResource SecondaryButton}">
+                                <StackPanel
                                     HorizontalAlignment="Center"
-                                    FontWeight="SemiBold"
-                                    Text="Rename Computer" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            Width="200"
-                            Height="80"
-                            Margin="0,0,16,16"
-                            Command="{Binding JoinDomainCommand}"
-                            Style="{StaticResource SecondaryButton}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="28"
-                                    Foreground="{StaticResource PrimaryBrush}"
-                                    Text="&#xE90B;" />
-                                <TextBlock
-                                    Margin="0,8,0,0"
-                                    HorizontalAlignment="Center"
-                                    FontWeight="SemiBold"
-                                    Text="Join Domain" />
-                            </StackPanel>
-                        </Button>
-                    </WrapPanel>
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="20"
+                                        Foreground="{StaticResource PrimaryBrush}"
+                                        Text="&#xE90B;" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Text="Join Domain" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                    </StackPanel>
                 </Border>
 
                 <!--  Quick Actions  -->
@@ -406,10 +441,10 @@
                             Height="100"
                             Margin="0,0,16,16"
                             Command="{Binding RunDefenderCommand}"
-                            Style="{StaticResource SecondaryButton}">
+                            Style="{StaticResource SecondaryButton}"
+                            ToolTip="Disable Windows Defender">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock
-                                    HorizontalAlignment="Center"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="28"
                                     Foreground="{StaticResource DangerBrush}"
@@ -426,10 +461,10 @@
                             Height="100"
                             Margin="0,0,16,16"
                             Command="{Binding RunDebloatCommand}"
-                            Style="{StaticResource SecondaryButton}">
+                            Style="{StaticResource SecondaryButton}"
+                            ToolTip="Remove Windows Bloatware">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock
-                                    HorizontalAlignment="Center"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="28"
                                     Foreground="{StaticResource PrimaryBrush}"
@@ -446,10 +481,10 @@
                             Height="100"
                             Margin="0,0,16,16"
                             Command="{Binding RunActivatorCommand}"
-                            Style="{StaticResource SecondaryButton}">
+                            Style="{StaticResource SecondaryButton}"
+                            ToolTip="Run Windows/Office Activator">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock
-                                    HorizontalAlignment="Center"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="28"
                                     Foreground="{StaticResource GoldBrush}"
@@ -466,10 +501,10 @@
                             Height="100"
                             Margin="0,0,16,16"
                             Command="{Binding RunBackupCommand}"
-                            Style="{StaticResource SecondaryButton}">
+                            Style="{StaticResource SecondaryButton}"
+                            ToolTip="Create Windows Image Backup">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock
-                                    HorizontalAlignment="Center"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="28"
                                     Foreground="{StaticResource PrimaryBrush}"
@@ -594,106 +629,6 @@
                     </StackPanel>
                 </Grid>
 
-                <!--  ==========================================  -->
-                <!--  Bloatware & Uninstall Manager  -->
-                <!--  ==========================================  -->
-                <TextBlock
-                    Margin="0,0,0,12"
-                    Style="{StaticResource OverlineStyle}"
-                    Text="APP UNINSTALLER &amp; BLOATWARE" />
-                <Border Margin="0,0,0,32" Style="{StaticResource GlassCard}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel
-                            Grid.Row="0"
-                            Margin="0,0,0,16"
-                            Orientation="Horizontal">
-                            <Button
-                                Margin="0,0,12,0"
-                                Command="{Binding ScanBloatwareCommand}"
-                                Content="SCAN INSTALLED APPS"
-                                Style="{StaticResource SecondaryButton}" />
-                            <Button
-                                Command="{Binding UninstallSelectedBloatwareCommand}"
-                                Content="UNINSTALL SELECTED"
-                                Style="{StaticResource DangerButton}" />
-                            <ProgressBar
-                                Width="100"
-                                Margin="16,0,0,0"
-                                VerticalAlignment="Center"
-                                Foreground="{StaticResource PrimaryBrush}"
-                                IsIndeterminate="True"
-                                Visibility="{Binding IsScanningBloatware, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        </StackPanel>
-
-                        <Border
-                            Grid.Row="1"
-                            MaxHeight="250"
-                            Background="{StaticResource SurfaceVariantBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
-                            <ListBox
-                                Background="Transparent"
-                                BorderThickness="0"
-                                ItemsSource="{Binding BloatwareList}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox
-                                            Margin="8,4"
-                                            IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
-                                            Style="{StaticResource ModernCheckBox}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock
-                                                    VerticalAlignment="Center"
-                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                    Text="{Binding DisplayName}" />
-                                                <Border
-                                                    Margin="8,0,0,0"
-                                                    Padding="6,2"
-                                                    Background="{StaticResource DangerBrush}"
-                                                    CornerRadius="4"
-                                                    Visibility="{Binding IsKnownBloat, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock
-                                                        VerticalAlignment="Center"
-                                                        FontSize="10"
-                                                        FontWeight="Bold"
-                                                        Foreground="White"
-                                                        Text="BLOAT" />
-                                                </Border>
-                                                <Border
-                                                    Margin="8,0,0,0"
-                                                    Padding="6,2"
-                                                    Background="{StaticResource GoldBrush}"
-                                                    CornerRadius="4"
-                                                    Visibility="{Binding IsUwp, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock
-                                                        VerticalAlignment="Center"
-                                                        FontSize="10"
-                                                        FontWeight="Bold"
-                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                        Text="UWP" />
-                                                </Border>
-                                            </StackPanel>
-                                        </CheckBox>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Border>
-
-                        <TextBlock
-                            Grid.Row="2"
-                            Margin="0,12,0,0"
-                            Style="{StaticResource CaptionStyle}"
-                            Text="Tip: Known bloatware is auto-selected and highlighted in red. Review carefully before uninstalling." />
-                    </Grid>
-                </Border>
-
                 <!--  Live Terminal  -->
                 <TextBlock
                     Margin="0,0,0,12"
@@ -709,7 +644,7 @@
                             FontSize="13"
                             Foreground="#A3E635"
                             IsReadOnly="True"
-                            Text="{Binding LogOutput}"
+                            Text="{Binding LogOutput, Mode=OneWay}"
                             TextChanged="Terminal_TextChanged"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto" />
@@ -789,7 +724,7 @@
                     <TextBlock
                         HorizontalAlignment="Center"
                         Style="{StaticResource CaptionStyle}"
-                        Text="Ensure 'Assets' folder is present." />
+                        Text="Ensure 'Assets' folder is present in the application directory." />
                     <TextBlock
                         Margin="0,4,0,0"
                         HorizontalAlignment="Center"
