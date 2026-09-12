@@ -16,7 +16,8 @@ namespace PGInstaller.Viewmodel
         public Dictionary<string, string> MedicineMap { get; } = new Dictionary<string, string>
         {
             { "Windows/Office Activator", "MAS_AIO.cmd" },
-            { "CorelDRAW Keygen", "cx5.exe" },
+            { "Coreldraw Graphics X5 Keygen", "cx5.exe" },
+            { "Coreldraw Graphics X7 Keygen", "cx7.exe" },
             { "Adobe Patcher", "GenP.exe" },
             { "Bartender 2022 Patcher", "bp2022p.exe" },
             { "Bartender 2016 Patcher", "bp2016p.exe" },

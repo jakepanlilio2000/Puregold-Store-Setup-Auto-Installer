@@ -196,54 +196,47 @@ namespace PGInstaller.Viewmodel
                     item.PropertyChanged -= Item_PropertyChanged;
                 }
             }
-            UpdatePendingTasksCount();
         }
 
 
         private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(InstallAppItem.IsChecked) && sender is InstallAppItem changedItem)
+            if (e.PropertyName == nameof(InstallAppItem.IsChecked))
             {
-                UpdatePendingTasksCount();
-                if (changedItem.IsChecked)
+                if (sender is InstallAppItem checkedItem && checkedItem.IsChecked)
                 {
-                    EnforceMutualExclusivity(changedItem);
+                    EnforceMutualExclusivity(checkedItem);
                 }
             }
         }
 
         private void EnforceMutualExclusivity(InstallAppItem checkedItem)
         {
-            string[] bartenderVersions = ["Bartender 10.1", "Bartender 2016", "Bartender 2022"];
-            string[] bartenderDrivers = ["Argox Driver", "Zebra Driver"];
-            string[] wampVersions = ["Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0"];
+            string[] wampVersions = { "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0" };
+            string[] bartenderVersions = { "Bartender 10.1", "Bartender 2016", "Bartender 2022" };
+            string[] bartenderDrivers = { "Argox Driver", "Zebra Driver" };
+            string[] corelVersions = { "Coreldraw Graphics X5", "Coreldraw Graphics X7" };
 
-
-            if (bartenderVersions.Contains(checkedItem.Name))
+            if (wampVersions.Contains(checkedItem.Name))
             {
                 foreach (var item in PreviewList)
-                {
-                    if (bartenderVersions.Contains(item.Name) && item != checkedItem && item.IsChecked)
-                    {
-                        item.IsChecked = false;
-                    }
-                }
+                    if (wampVersions.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
+            }
+            else if (bartenderVersions.Contains(checkedItem.Name))
+            {
+                foreach (var item in PreviewList)
+                    if (bartenderVersions.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
             }
             else if (bartenderDrivers.Contains(checkedItem.Name))
             {
                 foreach (var item in PreviewList)
-                {
-                    if (bartenderDrivers.Contains(item.Name) && item != checkedItem && item.IsChecked)
-                    {
-                        item.IsChecked = false;
-                    }
-                }
+                    if (bartenderDrivers.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
             }
-            else if (wampVersions.Contains(checkedItem.Name))
+            else if (corelVersions.Contains(checkedItem.Name))
             {
                 foreach (var item in PreviewList)
                 {
-                    if (wampVersions.Contains(item.Name) && item != checkedItem && item.IsChecked)
+                    if (corelVersions.Contains(item.Name) && item != checkedItem)
                     {
                         item.IsChecked = false;
                     }

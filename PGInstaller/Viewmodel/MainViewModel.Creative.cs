@@ -5,9 +5,13 @@
         private async Task InstallCreativePackage(IEnumerable<string> selectedApps)
         {
             await InstallCommonPackages(selectedApps);
-            if (selectedApps.Contains("Coreldraw Graphics X5") || selectedApps.Contains("Photoshop CS6") || selectedApps.Contains("Illustrator CS6"))
+
+            if (selectedApps.Contains("Coreldraw Graphics X5") ||
+                selectedApps.Contains("Coreldraw Graphics X7") ||
+                selectedApps.Contains("Photoshop CS6") ||
+                selectedApps.Contains("Illustrator CS6"))
             {
-                await InstallCorelPSIllu();
+                await InstallCorelPSIllu(selectedApps);
             }
         }
     }

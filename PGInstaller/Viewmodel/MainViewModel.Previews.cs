@@ -18,7 +18,7 @@
         "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0",
         "Bartender 10.1", "Bartender 2016", "Bartender 2022",
         "Argox Driver", "Zebra Driver",
-        "Inventory Tools", "Variance", "Coreldraw Graphics X5",
+        "Inventory Tools", "Variance", "Coreldraw Graphics X5","Coreldraw Graphics X7",
         "Photoshop CS6", "Illustrator CS6", "Java Oracle", "VLC Media Player"
     };
 
@@ -46,7 +46,7 @@
                     defaultAppsForDept.AddRange(new[] { "MMS (PCOMM)", "PIMS" });
                     break;
                 case "Creative":
-                    defaultAppsForDept.AddRange(new[] { "Coreldraw Graphics X5", "Photoshop CS6", "Illustrator CS6" });
+                    defaultAppsForDept.AddRange(new[] {"Coreldraw Graphics X7", "Photoshop CS6", "Illustrator CS6" });
                     break;
                 case "Receiving":
                     defaultAppsForDept.AddRange(new[] { "MMS (PCOMM)", "Bartender 10.1", "Argox Driver" });

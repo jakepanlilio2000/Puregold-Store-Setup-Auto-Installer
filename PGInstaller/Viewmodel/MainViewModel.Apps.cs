@@ -948,41 +948,85 @@ Require all granted
             IncrementProgress();
         }
 
-        private async Task InstallCorelPSIllu()
+        private async Task InstallCorelPSIllu(IEnumerable<string> selectedApps)
         {
             await InstallNetFx3();
-            string corelExe = "crdx5.exe";
-            string corelPath = Path.Combine(_assetsPath!, corelExe);
 
-            if (File.Exists(corelPath))
+
+            bool installX5 = selectedApps.Contains("Coreldraw Graphics X5");
+            bool installX7 = selectedApps.Contains("Coreldraw Graphics X7");
+
+            if (installX5)
             {
-                await RunProcessAsync(corelPath, "", "Launching CorelDRAW X5 Installer");
+                string corelX5Exe = "crdx5.exe";
+                string corelX5Path = Path.Combine(_assetsPath!, corelX5Exe);
 
-                string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                string installedPath = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
-
-                if (!File.Exists(installedPath))
+                if (File.Exists(corelX5Path))
                 {
-                    string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                    installedPath = Path.Combine(prog64, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
-                }
+                    await RunProcessAsync(corelX5Path, "", "Launching CorelDRAW X5 Installer");
 
-                if (File.Exists(installedPath))
-                {
-                    await CreateAllUsersShortcut("CorelDRAW X5", installedPath);
+                    string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                    string installedPathX5 = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
+
+                    if (!File.Exists(installedPathX5))
+                    {
+                        string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                        installedPathX5 = Path.Combine(prog64, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
+                    }
+
+                    if (File.Exists(installedPathX5))
+                    {
+                        await CreateAllUsersShortcut("CorelDRAW X5", installedPathX5);
+                        Log("   [SHORTCUT] Created All Users Shortcut: CorelDRAW X5");
+                    }
+                    else
+                    {
+                        Log("   [WARN] Could not locate CorelDRW.exe for X5 to create shortcut.");
+                    }
                 }
                 else
                 {
-                    Log("   [WARN] Could not locate CorelDRW.exe to create shortcut.");
+                    Log($"   [SKIP] CorelDRAW X5 installer not found: {corelX5Exe}");
                 }
             }
-            else
+
+            if (installX7)
             {
-                Log($"   [SKIP] Corel installer not found: {corelExe}");
+                string corelX7Exe = "crdx7.exe";
+                string corelX7Path = Path.Combine(_assetsPath!, corelX7Exe);
+
+                if (File.Exists(corelX7Path))
+                {
+                    await RunProcessAsync(corelX7Path, "", "Launching CorelDRAW X7 Installer");
+
+                    string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                    string installedPathX7 = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X7\Programs\CorelDRW.exe");
+
+                    if (!File.Exists(installedPathX7))
+                    {
+                        string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                        installedPathX7 = Path.Combine(prog64, @"Corel\CorelDRAW Graphics Suite X7\Programs\CorelDRW.exe");
+                    }
+
+                    if (File.Exists(installedPathX7))
+                    {
+                        await CreateAllUsersShortcut("CorelDRAW X7", installedPathX7);
+                        Log("   [SHORTCUT] Created All Users Shortcut: CorelDRAW X7");
+                    }
+                    else
+                    {
+                        Log("   [WARN] Could not locate CorelDRW.exe for X7 to create shortcut.");
+                    }
+                }
+                else
+                {
+                    Log($"   [SKIP] CorelDRAW X7 installer not found: {corelX7Exe}");
+                }
             }
 
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string illuZip = Path.Combine(_assetsPath!, "illucs6.zip");
+
             if (File.Exists(illuZip))
             {
                 string destDir = Path.Combine(progFiles, "IllustratorCS6Portable");
@@ -1001,9 +1045,11 @@ Require all granted
                         Log($"   [ERROR] Illustrator extraction failed: {ex.Message}");
                     }
                 }
+
                 if (File.Exists(exePath))
                 {
                     await CreateAllUsersShortcut("Illustrator CS6", exePath, destDir);
+                    Log("   [SHORTCUT] Created All Users Shortcut: Illustrator CS6");
                 }
             }
             else
@@ -1012,6 +1058,7 @@ Require all granted
             }
 
             string psZip = Path.Combine(_assetsPath!, "pscs6.zip");
+
             if (File.Exists(psZip))
             {
                 string destDir = Path.Combine(progFiles, "PhotoshopCS6Portable");
@@ -1034,12 +1081,14 @@ Require all granted
                 if (File.Exists(exePath))
                 {
                     await CreateAllUsersShortcut("Photoshop CS6", exePath, destDir);
+                    Log("   [SHORTCUT] Created All Users Shortcut: Photoshop CS6");
                 }
             }
             else
             {
                 Log("   [SKIP] pscs6.zip not found.");
             }
+
             IncrementProgress();
         }
 
