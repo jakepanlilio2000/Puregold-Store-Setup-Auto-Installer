@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -29,11 +29,11 @@ namespace PGInstaller.Viewmodel
             if (AntivirusMap.TryGetValue(SelectedAntivirus, out string? fileName))
             {
                 string relativePath = Path.Combine("av", fileName);
-                string fullSourcePath = Path.Combine(_assetsPath!, "av", fileName);
+                string? fullSourcePath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
 
                 if (fileName.EndsWith(".zip"))
                 {
-                    if (!File.Exists(fullSourcePath))
+                    if (string.IsNullOrEmpty(fullSourcePath) || !File.Exists(fullSourcePath))
                     {
                         Log($"   [ERROR] {fileName} not found in Assets/av folder.");
                         return;

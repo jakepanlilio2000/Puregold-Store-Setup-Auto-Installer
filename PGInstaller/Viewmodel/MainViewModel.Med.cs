@@ -1,6 +1,7 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -33,20 +34,29 @@ namespace PGInstaller.Viewmodel
 
             if (MedicineMap.TryGetValue(SelectedMedicineName, out string? fileName))
             {
-                string fullPath = Path.Combine(_assetsPath!, "Activators", fileName);
+                string relativePath = Path.Combine("activators", fileName);
+                string? fullPath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
 
-                if (File.Exists(fullPath))
+                if (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath))
                 {
                     Log($"   [LAUNCH] Opening {SelectedMedicineName}...");
 
                     try
                     {
-                        Process.Start(new ProcessStartInfo
+                        var startInfo = new ProcessStartInfo
                         {
                             FileName = fullPath,
                             UseShellExecute = true,
                             WorkingDirectory = Path.GetDirectoryName(fullPath)
-                        });
+                        };
+
+                        if (fullPath.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                            fullPath.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
+                        {
+                            startInfo.Verb = "runas";
+                        }
+
+                        Process.Start(startInfo);
                     }
                     catch (Exception ex)
                     {
@@ -55,7 +65,7 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log($"   [ERROR] File not found: Activators\\{fileName}");
+                    Log($"   [ERROR] File not found: activators\\{fileName}");
                 }
             }
             else

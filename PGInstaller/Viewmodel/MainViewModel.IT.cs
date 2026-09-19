@@ -1,4 +1,4 @@
-﻿namespace PGInstaller.Viewmodel
+namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
@@ -21,8 +21,8 @@
                 Log("   [PARALLEL] Concurrent IT tasks completed.");
             }
             if (selectedApps.Contains("A&VGW")) await InstallAVGW();
-            if (selectedApps.Contains("PuTTY (+ Registry Settings)")) await InstallPutty();
-            if (selectedApps.Contains("WinSCP (+ Config)")) await InstallWinSCP();
+            if (selectedApps.Contains("PuTTY") || selectedApps.Contains("PuTTY (+ Registry Settings)")) await InstallPutty();
+            if (selectedApps.Contains("WinSCP") || selectedApps.Contains("WinSCP (+ Config)")) await InstallWinSCP();
             if (selectedApps.Contains("Radmin Viewer")) await InstallRadminViewer();
             if (selectedApps.Contains("MMS (PCOMM)")) await InstallMMS();
             if (selectedApps.Contains("PIMS")) await InstallPIMS();

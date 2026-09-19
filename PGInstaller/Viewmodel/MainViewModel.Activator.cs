@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -23,18 +23,13 @@ namespace PGInstaller.Viewmodel
             try
             {
                 await PrepareAssets();
-                string scriptName = "activator.cmd";
-                string sourcePath = Path.Combine(_assetsPath!, scriptName);
+                string scriptRelative = Path.Combine("activators", "MAS_AIO.cmd");
+                string? sourcePath = ResolveAssetPath(scriptRelative) ?? ResolveAssetPath("MAS_AIO.cmd");
 
-                if (!File.Exists(sourcePath))
-                {
-                    scriptName = "win.cmd";
-                    sourcePath = Path.Combine(_assetsPath!, scriptName);
-                }
-
-                if (File.Exists(sourcePath))
+                if (!string.IsNullOrEmpty(sourcePath) && File.Exists(sourcePath))
                 {
                     string destDir = @"C:\PG_Activator";
+                    string scriptName = Path.GetFileName(sourcePath);
                     string destPath = Path.Combine(destDir, scriptName);
 
                     if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
@@ -55,7 +50,7 @@ namespace PGInstaller.Viewmodel
                 }
                 else
                 {
-                    Log("   [ERROR] Activator script (activator.cmd or win.cmd) not found.");
+                    Log("   [ERROR] Activator script (activators\\MAS_AIO.cmd) not found.");
                 }
             }
             catch (Exception ex)
@@ -71,10 +66,10 @@ namespace PGInstaller.Viewmodel
         }
 
         private async Task RunScriptTask(
-    string scriptName,
-    string description,
-    string? altName = null
-)
+            string scriptName,
+            string description,
+            string? altName = null
+        )
         {
             if (IsBusy) return;
             IsBusy = true;
@@ -87,18 +82,18 @@ namespace PGInstaller.Viewmodel
             {
                 await PrepareAssets();
 
-                string scriptPath = Path.Combine(_assetsPath!, scriptName);
-                if (!File.Exists(scriptPath) && !string.IsNullOrEmpty(altName))
+                string? scriptPath = ResolveAssetPath(scriptName);
+                if ((string.IsNullOrEmpty(scriptPath) || !File.Exists(scriptPath)) && !string.IsNullOrEmpty(altName))
                 {
-                    string altPath = Path.Combine(_assetsPath!, altName);
-                    if (File.Exists(altPath))
+                    string? altPath = ResolveAssetPath(altName);
+                    if (!string.IsNullOrEmpty(altPath) && File.Exists(altPath))
                     {
                         scriptPath = altPath;
                         Log($"   [INFO] '{scriptName}' not found. Using '{altName}' instead.");
                     }
                 }
 
-                if (File.Exists(scriptPath))
+                if (!string.IsNullOrEmpty(scriptPath) && File.Exists(scriptPath))
                 {
                     if (scriptPath.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
                     {

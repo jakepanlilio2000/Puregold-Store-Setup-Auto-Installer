@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PGInstaller.Viewmodel
 {
@@ -10,10 +10,18 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty]
         private bool _isChecked;
 
-        public InstallAppItem(string name, bool isChecked = false)
+        [ObservableProperty]
+        private bool _isInstalled;
+
+        [ObservableProperty]
+        private bool _forceInstall;
+
+        public InstallAppItem(string name, bool isChecked = false, bool isInstalled = false, bool forceInstall = false)
         {
             Name = name;
             IsChecked = isChecked;
+            IsInstalled = isInstalled;
+            ForceInstall = forceInstall;
         }
     }
 }

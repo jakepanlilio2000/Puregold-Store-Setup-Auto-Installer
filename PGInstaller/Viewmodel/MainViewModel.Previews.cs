@@ -1,4 +1,4 @@
-﻿namespace PGInstaller.Viewmodel
+namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
@@ -8,26 +8,26 @@
             if (string.IsNullOrEmpty(value)) return;
 
             var allApps = new List<string>
-    {
-        "Google Chrome", "Mozilla Firefox", "Microsoft Edge", "WinRAR", "Notepad++",
-        "Mozilla Thunderbird", "Oracle Java Runtime", "All VC++ Redistributables",
-        "WPS Office 2020", "Revo Uninstaller Pro", "Adobe Acrobat PRO DC", "Sticky Notes",
-        "IObit Driver Booster", "Radmin Server", "Zoom", "Advanced IP Scanner",
-        "PITK", "A&VGW", "PuTTY", "WinSCP", "Radmin Viewer",
-        "PIMS", "MMS (PCOMM)", "Chrome Bookmarks (CBM)", ".NET Framework 3.5", "FSDM",
-        "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0",
-        "Bartender 10.1", "Bartender 2016", "Bartender 2022",
-        "Argox Driver", "Zebra Driver",
-        "Inventory Tools", "Variance", "Coreldraw Graphics X5","Coreldraw Graphics X7",
-        "Photoshop CS6", "Illustrator CS6", "Java Oracle", "VLC Media Player"
-    };
+            {
+                "Google Chrome", "Mozilla Firefox", "Microsoft Edge", "WinRAR", "Notepad++",
+                "Mozilla Thunderbird", "Oracle Java Runtime", "All VC++ Redistributables",
+                "WPS Office 2020", "Revo Uninstaller Pro", "Adobe Acrobat PRO DC", "Sticky Notes",
+                "IObit Driver Booster", "Radmin Server", "Zoom", "Advanced IP Scanner",
+                "PITK", "A&VGW", "PuTTY", "WinSCP", "Radmin Viewer",
+                "PIMS", "MMS (PCOMM)", "Chrome Bookmarks (CBM)", ".NET Framework 3.5", "FSDM",
+                "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0",
+                "Bartender 10.1", "Bartender 2016", "Bartender 2022",
+                "Argox Driver", "Zebra Driver",
+                "Inventory Tools", "Variance", "Coreldraw Graphics X5","Coreldraw Graphics X7",
+                "Photoshop CS6", "Illustrator CS6", "Java Oracle", "VLC Media Player"
+            };
 
             var defaultAppsForDept = new List<string>
-    {
-        "Google Chrome", "Mozilla Firefox", "WinRAR", "Notepad++", "Mozilla Thunderbird",
-        "Oracle Java Runtime", "All VC++ Redistributables", "WPS Office 2020", "Revo Uninstaller Pro",
-        "Adobe Acrobat PRO DC", "Sticky Notes"
-    };
+            {
+                "Google Chrome", "Mozilla Firefox", "WinRAR", "Notepad++", "Mozilla Thunderbird",
+                "Oracle Java Runtime", "All VC++ Redistributables", "WPS Office 2020", "Revo Uninstaller Pro",
+                "Adobe Acrobat PRO DC", "Sticky Notes"
+            };
 
             switch (value)
             {
@@ -72,6 +72,9 @@
             {
                 PreviewList.Add(new InstallAppItem(app, defaultAppsForDept.Contains(app)));
             }
+
+            UpdatePendingTasksCount();
+            _ = CheckInstalledSoftwareAsync();
         }
     }
 }

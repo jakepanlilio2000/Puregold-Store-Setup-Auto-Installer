@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Diagnostics;
 using System.IO;
@@ -76,9 +76,9 @@ namespace PGInstaller.Viewmodel
                 {
                     await PrepareAssets();
 
-                    string scriptPath = Path.Combine(_assetsPath!, "AchillesScript.cmd");
+                    string? scriptPath = ResolveAssetPath("AchillesScript.cmd");
 
-                    if (File.Exists(scriptPath))
+                    if (!string.IsNullOrEmpty(scriptPath) && File.Exists(scriptPath))
                     {
                         await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Achilles (Defender Disabler)");
                         Log("   [SUCCESS] Script executed.");

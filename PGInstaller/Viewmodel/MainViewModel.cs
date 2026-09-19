@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
@@ -20,6 +20,8 @@ namespace PGInstaller.Viewmodel
         private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
         private string? _sharedDatabaseIp;
+        private CancellationTokenSource? _checkInstalledCts;
+
         [ObservableProperty] private string? _logOutput;
         [ObservableProperty] private bool _isBusy;
         [ObservableProperty] private string? _selectedDepartment;
@@ -85,6 +87,7 @@ namespace PGInstaller.Viewmodel
             _ = CheckSystemRestoreStatus();
             _ = CheckDomainStatusAsync();
             _ = LoadSystemInfoAsync();
+            _ = CheckInstalledSoftwareAsync();
 
             FilteredPreviewList = CollectionViewSource.GetDefaultView(PreviewList);
             FilteredPreviewList.Filter = item =>
@@ -103,6 +106,7 @@ namespace PGInstaller.Viewmodel
             CurrentStep++;
             ProgressPercentage = TotalSteps > 0 ? Math.Min(100, (int)((double)CurrentStep / TotalSteps * 100)) : 0;
         }
+
         private async Task LoadSystemInfoAsync()
         {
             await Task.Run(() =>
@@ -152,6 +156,7 @@ namespace PGInstaller.Viewmodel
                 }
             });
         }
+
         partial void OnManifestSearchTextChanged(string value)
         {
             FilteredPreviewList.Refresh();
@@ -179,6 +184,7 @@ namespace PGInstaller.Viewmodel
         {
             ManifestSearchText = "";
         }
+
         private void PreviewList_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.NewItems != null)
@@ -196,8 +202,9 @@ namespace PGInstaller.Viewmodel
                     item.PropertyChanged -= Item_PropertyChanged;
                 }
             }
-        }
 
+            UpdatePendingTasksCount();
+        }
 
         private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -207,38 +214,70 @@ namespace PGInstaller.Viewmodel
                 {
                     EnforceMutualExclusivity(checkedItem);
                 }
+                UpdatePendingTasksCount();
+            }
+            else if (e.PropertyName == nameof(InstallAppItem.ForceInstall))
+            {
+                if (sender is InstallAppItem forceItem && forceItem.ForceInstall)
+                {
+                    EnforceMutualExclusivity(forceItem);
+                }
+                UpdatePendingTasksCount();
+            }
+            else if (e.PropertyName == nameof(InstallAppItem.IsInstalled))
+            {
+                UpdatePendingTasksCount();
             }
         }
 
-        private void EnforceMutualExclusivity(InstallAppItem checkedItem)
+        private void EnforceMutualExclusivity(InstallAppItem activeItem)
         {
             string[] wampVersions = { "Wamp 1.7.2", "Wamp 2", "Wamp 2.5", "Wampserver 3.4.0" };
             string[] bartenderVersions = { "Bartender 10.1", "Bartender 2016", "Bartender 2022" };
             string[] bartenderDrivers = { "Argox Driver", "Zebra Driver" };
             string[] corelVersions = { "Coreldraw Graphics X5", "Coreldraw Graphics X7" };
 
-            if (wampVersions.Contains(checkedItem.Name))
-            {
-                foreach (var item in PreviewList)
-                    if (wampVersions.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
-            }
-            else if (bartenderVersions.Contains(checkedItem.Name))
-            {
-                foreach (var item in PreviewList)
-                    if (bartenderVersions.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
-            }
-            else if (bartenderDrivers.Contains(checkedItem.Name))
-            {
-                foreach (var item in PreviewList)
-                    if (bartenderDrivers.Contains(item.Name) && item != checkedItem) item.IsChecked = false;
-            }
-            else if (corelVersions.Contains(checkedItem.Name))
+            if (wampVersions.Contains(activeItem.Name))
             {
                 foreach (var item in PreviewList)
                 {
-                    if (corelVersions.Contains(item.Name) && item != checkedItem)
+                    if (wampVersions.Contains(item.Name) && item != activeItem)
                     {
                         item.IsChecked = false;
+                        item.ForceInstall = false;
+                    }
+                }
+            }
+            else if (bartenderVersions.Contains(activeItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (bartenderVersions.Contains(item.Name) && item != activeItem)
+                    {
+                        item.IsChecked = false;
+                        item.ForceInstall = false;
+                    }
+                }
+            }
+            else if (bartenderDrivers.Contains(activeItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (bartenderDrivers.Contains(item.Name) && item != activeItem)
+                    {
+                        item.IsChecked = false;
+                        item.ForceInstall = false;
+                    }
+                }
+            }
+            else if (corelVersions.Contains(activeItem.Name))
+            {
+                foreach (var item in PreviewList)
+                {
+                    if (corelVersions.Contains(item.Name) && item != activeItem)
+                    {
+                        item.IsChecked = false;
+                        item.ForceInstall = false;
                     }
                 }
             }
@@ -246,8 +285,9 @@ namespace PGInstaller.Viewmodel
 
         private void UpdatePendingTasksCount()
         {
-            PendingTasksCount = PreviewList.Count(x => x.IsChecked);
+            PendingTasksCount = PreviewList.Count(x => (!x.IsInstalled && x.IsChecked) || (x.IsInstalled && x.ForceInstall));
         }
+
         private async Task CheckDomainStatusAsync()
         {
             await Task.Run(() =>
@@ -270,7 +310,7 @@ namespace PGInstaller.Viewmodel
                 }
             });
         }
-        
+
         [RelayCommand]
         private async Task Install()
         {
@@ -284,7 +324,11 @@ namespace PGInstaller.Viewmodel
                 return;
             }
 
-            var selectedApps = PreviewList.Where(x => x.IsChecked).Select(x => x.Name).ToList();
+            var selectedApps = PreviewList
+                .Where(x => (!x.IsInstalled && x.IsChecked) || (x.IsInstalled && x.ForceInstall))
+                .Select(x => x.Name)
+                .ToList();
+
             if (selectedApps.Count == 0)
             {
                 Log("   [WARN] No applications selected for installation.");
@@ -310,7 +354,6 @@ namespace PGInstaller.Viewmodel
 
             try
             {
-
                 bool renameProceed = await HandleComputerRenameAsync();
                 if (!renameProceed) return;
 
@@ -366,13 +409,13 @@ namespace PGInstaller.Viewmodel
             }
         }
 
-
         private async Task SmartInstall(
-    string appName,
-    string exeName,
-    string args = "/silent",
-    string? checkName = null
-)
+            string appName,
+            string exeName,
+            string args = "/silent",
+            string? checkName = null,
+            bool? force = null
+        )
         {
             bool isSkipped = false;
             bool success = false;
@@ -381,17 +424,19 @@ namespace PGInstaller.Viewmodel
             {
                 CurrentTaskDescription = $"Installing {appName}...";
 
-                if (!string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
+                bool isForceInstall = force ?? IsForceInstall(appName, checkName);
+
+                if (!isForceInstall && !string.IsNullOrEmpty(checkName) && IsAppInstalled(checkName))
                 {
                     Log($"   [SKIP] {appName} is already installed.");
                     isSkipped = true;
                     return;
                 }
 
-                string installerPath = Path.Combine(_assetsPath!, exeName);
-                if (File.Exists(installerPath))
+                string? installerPath = ResolveAssetPath(exeName);
+                if (!string.IsNullOrEmpty(installerPath) && File.Exists(installerPath))
                 {
-                    if (exeName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                    if (installerPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
                     {
                         success = await RunProcessAsync("msiexec.exe", $"/i \"{installerPath}\" {args}", $"Installing {appName}");
                     }
@@ -433,9 +478,18 @@ namespace PGInstaller.Viewmodel
             if (selectedApps.Contains("WinRAR"))
                 await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
             if (selectedApps.Contains("Revo Uninstaller Pro"))
-                await SmartInstall("Revo Uninstaller", "revo.exe", "/S /EI", "Revo Uninstaller");
+            {
+                await SmartInstall("Revo Uninstaller", "revo.exe", "/S /E", "Revo Uninstaller");
+                try
+                {
+                    using var key = Registry.CurrentUser.CreateSubKey(@"Software\VS Revo Group\Revo Uninstaller Pro\General");
+                    key?.SetValue("CurrentLanguage", "English");
+                    key?.SetValue("Language", "English");
+                }
+                catch { }
+            }
             if (selectedApps.Contains("IObit Driver Booster"))
-                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /EI", "Driver Booster");
+                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /E", "Driver Booster");
             if (selectedApps.Contains("Notepad++"))
                 await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
             if (selectedApps.Contains("Mozilla Thunderbird"))
@@ -445,7 +499,8 @@ namespace PGInstaller.Viewmodel
 
             if (selectedApps.Contains("Adobe Acrobat PRO DC"))
             {
-                if (!IsAppInstalled("Adobe Acrobat"))
+                bool forceAcrobat = IsForceInstall("Adobe Acrobat PRO DC", "Adobe Acrobat");
+                if (forceAcrobat || !IsAppInstalled("Adobe Acrobat"))
                     await InstallZipPackage("acrobat.zip", "Setup.exe", "/sAll", "Adobe Acrobat PRO");
                 else
                     Log("   [SKIP] Adobe Acrobat is already installed.");
@@ -512,7 +567,7 @@ namespace PGInstaller.Viewmodel
                 }
             }
 
-            if (selectedApps.Contains("Radmin Server (+ Config)"))
+            if (selectedApps.Contains("Radmin Server (+ Config)") || selectedApps.Contains("Radmin Server"))
             {
                 await SmartInstall("Radmin Server", "radmins.msi", "/qn /quiet", "Radmin Server 3.5");
                 await ApplyRadminServer();
@@ -520,13 +575,14 @@ namespace PGInstaller.Viewmodel
 
             if (selectedApps.Contains("All VC++ Redistributables"))
             {
+                bool forceVc = IsForceInstall("All VC++ Redistributables", "Visual C++");
                 bool hasModernVc = IsAppInstalled("Visual C++ v14") ||
                                    IsAppInstalled("Visual C++ 2015") ||
                                    IsAppInstalled("Visual C++ 2015-2022") ||
                                    IsAppInstalled("Visual C++ 2015-2019");
                 bool has2013Vc = IsAppInstalled("Visual C++ 2013");
 
-                if (!hasModernVc || !has2013Vc)
+                if (forceVc || !hasModernVc || !has2013Vc)
                 {
                     Log("   [INIT] Preparing VC++ Runtimes...");
                     await InstallZipPackage("vcredistAIO.zip", "install_all.bat", "", "VC++ Runtimes");
@@ -542,12 +598,10 @@ namespace PGInstaller.Viewmodel
             Log("   [CONFIG] Managing Taskbar Pins...");
             await ClearTaskbar();
 
-
             await PinToTaskbar("File Explorer", "explorer.exe");
             if (selectedApps.Contains("Google Chrome")) await PinToTaskbar("Google Chrome", "chrome.exe");
             if (selectedApps.Contains("Mozilla Firefox")) await PinToTaskbar("Mozilla Firefox", "firefox.exe");
             if (selectedApps.Contains("Mozilla Thunderbird")) await PinToTaskbar("Mozilla Thunderbird", "thunderbird.exe");
-
 
             Log("   [CONFIG] Setting Power Options (Sleep: Never)...");
             await RunProcessAsync("powercfg", "/change standby-timeout-ac 0", "Disable Sleep (AC)");
@@ -559,9 +613,9 @@ namespace PGInstaller.Viewmodel
         private async Task ApplyWallpaper()
         {
             string wallpaperName = "PG-wallpaper.jpeg";
-            string wallpaperPath = Path.Combine(_assetsPath!, wallpaperName);
+            string? wallpaperPath = ResolveAssetPath(wallpaperName);
 
-            if (File.Exists(wallpaperPath))
+            if (!string.IsNullOrEmpty(wallpaperPath) && File.Exists(wallpaperPath))
             {
                 Log($"   [CONFIG] Applying Wallpaper: {wallpaperName}...");
                 try
@@ -594,11 +648,11 @@ namespace PGInstaller.Viewmodel
 
         private async Task InstallZipPackage(string zipName, string installerName, string args, string description)
         {
-            string zipPath = Path.Combine(_assetsPath!, zipName);
+            string? zipPath = ResolveAssetPath(zipName);
             string extractRoot = @"C:\Assets";
             string extractPath = Path.Combine(extractRoot, Path.GetFileNameWithoutExtension(zipName));
 
-            if (File.Exists(zipPath))
+            if (!string.IsNullOrEmpty(zipPath) && File.Exists(zipPath))
             {
                 if (!Directory.Exists(extractPath))
                 {
@@ -660,6 +714,172 @@ namespace PGInstaller.Viewmodel
         #endregion
 
         #region Helpers
+
+        private bool IsForceInstall(params string?[] appNames)
+        {
+            var validNames = appNames.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!).ToList();
+            if (validNames.Count == 0) return false;
+
+            return PreviewList.Any(item => item.ForceInstall && validNames.Any(name =>
+                item.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                item.Name.Contains(name, StringComparison.OrdinalIgnoreCase) ||
+                name.Contains(item.Name, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        public async Task CheckInstalledSoftwareAsync()
+        {
+            _checkInstalledCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _checkInstalledCts = cts;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    var items = PreviewList.ToList();
+                    foreach (var item in items)
+                    {
+                        if (cts.Token.IsCancellationRequested) return;
+
+                        bool installed = CheckIfAppIsInstalled(item.Name);
+
+                        if (cts.Token.IsCancellationRequested) return;
+
+                        Application.Current?.Dispatcher?.Invoke(() =>
+                        {
+                            if (cts.Token.IsCancellationRequested) return;
+
+                            item.IsInstalled = installed;
+                            if (installed)
+                            {
+                                item.IsChecked = false;
+                            }
+                        });
+                    }
+
+                    if (!cts.Token.IsCancellationRequested)
+                    {
+                        Application.Current?.Dispatcher?.Invoke(UpdatePendingTasksCount);
+                    }
+                }, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Operation canceled due to department switch
+            }
+        }
+
+        private bool CheckIfAppIsInstalled(string appName)
+        {
+            if (string.IsNullOrWhiteSpace(appName)) return false;
+
+            if (appName.Equals("MMS (PCOMM)", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsAppInstalled("Personal Communications") || IsAppInstalled("PCOMM") || IsAppInstalled("MMS");
+            }
+
+            if (appName.Equals("Sticky Notes", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsAppInstalled("Sticky Notes") || IsAppInstalled("Simple Sticky Notes");
+            }
+
+            if (appName.Equals("All VC++ Redistributables", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsAppInstalled("Visual C++ v14") ||
+                       IsAppInstalled("Visual C++ 2015") ||
+                       IsAppInstalled("Visual C++ 2015-2022") ||
+                       IsAppInstalled("Visual C++ 2015-2019") ||
+                       IsAppInstalled("Visual C++");
+            }
+
+            string searchTerm = GetRegistrySearchTerm(appName);
+            if (IsAppInstalled(searchTerm)) return true;
+            if (!searchTerm.Equals(appName, StringComparison.OrdinalIgnoreCase) && IsAppInstalled(appName)) return true;
+
+            return false;
+        }
+
+        private string GetRegistrySearchTerm(string appName)
+        {
+            return appName switch
+            {
+                "Google Chrome" => "Chrome",
+                "Mozilla Firefox" => "Firefox",
+                "Microsoft Edge" => "Edge",
+                "WinRAR" => "WinRAR",
+                "Notepad++" => "Notepad++",
+                "Mozilla Thunderbird" => "Thunderbird",
+                "Oracle Java Runtime" => "Java",
+                "All VC++ Redistributables" => "Visual C++",
+                "WPS Office 2020" => "WPS Office",
+                "Revo Uninstaller Pro" => "Revo Uninstaller",
+                "Adobe Acrobat PRO DC" => "Adobe Acrobat",
+                "Sticky Notes" => "Sticky Notes",
+                "IObit Driver Booster" => "Driver Booster",
+                "Radmin Server" => "Radmin Server",
+                "Zoom" => "Zoom",
+                "Advanced IP Scanner" => "Advanced IP Scanner",
+                "PITK" => "PITK",
+                "A&VGW" => "A&VGW",
+                "PuTTY" => "PuTTY",
+                "WinSCP" => "WinSCP",
+                "Radmin Viewer" => "Radmin Viewer",
+                "PIMS" => "PIMS",
+                "MMS (PCOMM)" => "Personal Communications",
+                "Chrome Bookmarks (CBM)" => "Chrome Bookmarks",
+                ".NET Framework 3.5" => ".NET Framework 3.5",
+                "FSDM" => "FSDM",
+                "Wamp 1.7.2" or "Wamp 2" or "Wamp 2.5" or "Wampserver 3.4.0" => "Wamp",
+                "Bartender 10.1" or "Bartender 2016" or "Bartender 2022" => "BarTender",
+                "Argox Driver" => "Argox",
+                "Zebra Driver" => "Zebra",
+                "Inventory Tools" => "Inventory Tools",
+                "Variance" => "Variance",
+                "Coreldraw Graphics X5" or "Coreldraw Graphics X7" => "Corel",
+                "Photoshop CS6" => "Photoshop",
+                "Illustrator CS6" => "Illustrator",
+                "Java Oracle" => "Java",
+                "VLC Media Player" => "VLC",
+                _ => appName
+            };
+        }
+
+        private bool IsAppInstalled(string partialName)
+        {
+            if (string.IsNullOrWhiteSpace(partialName)) return false;
+
+            string[] registryPaths =
+            [
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ];
+
+            var rootKeys = new[] { Registry.LocalMachine, Registry.CurrentUser };
+
+            foreach (var rootKey in rootKeys)
+            {
+                foreach (var path in registryPaths)
+                {
+                    try
+                    {
+                        using var key = rootKey.OpenSubKey(path);
+                        if (key != null)
+                        {
+                            foreach (var subkeyName in key.GetSubKeyNames())
+                            {
+                                using var subkey = key.OpenSubKey(subkeyName);
+                                var displayName = subkey?.GetValue("DisplayName") as string;
+                                if (!string.IsNullOrEmpty(displayName) && displayName.Contains(partialName, StringComparison.OrdinalIgnoreCase))
+                                    return true;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            return false;
+        }
+
         private async Task<bool> RunProcessAsync(
             string fileName,
             string arguments,
@@ -688,10 +908,10 @@ namespace PGInstaller.Viewmodel
         }
 
         private async Task<bool> RunCustomProcess(
-    ProcessStartInfo startInfo,
-    string description,
-    bool suppressError = false
-)
+            ProcessStartInfo startInfo,
+            string description,
+            bool suppressError = false
+        )
         {
             CurrentTaskDescription = description;
 
@@ -749,38 +969,9 @@ namespace PGInstaller.Viewmodel
                 return false;
             }
         }
-        private bool IsAppInstalled(string partialName)
-        {
-            string[] registryPaths =
-            [
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-            ];
-
-            foreach (var path in registryPaths)
-            {
-                try
-                {
-                    using var key = Registry.LocalMachine.OpenSubKey(path);
-                    if (key != null)
-                    {
-                        foreach (var subkeyName in key.GetSubKeyNames())
-                        {
-                            using var subkey = key.OpenSubKey(subkeyName);
-                            var displayName = subkey?.GetValue("DisplayName") as string;
-                            if (!string.IsNullOrEmpty(displayName) && displayName.Contains(partialName, StringComparison.OrdinalIgnoreCase))
-                                return true;
-                        }
-                    }
-                }
-                catch { }
-            }
-            return false;
-        }
 
         private string CleanLogLine(string line)
         {
-           
             if (string.IsNullOrWhiteSpace(line)) return null!;
             line = line.Trim();
             if (line.StartsWith("[=") || line.StartsWith("=======")) return null!;
@@ -820,6 +1011,7 @@ namespace PGInstaller.Viewmodel
                 Log($"   [FAILED] {appName}");
             }
         }
+
         private void ShowInstallationSummary()
         {
             string msg = $"Installation Complete!\n\n" +
@@ -858,8 +1050,109 @@ namespace PGInstaller.Viewmodel
             await Task.WhenAll(executionTasks);
             Log("   [PARALLEL] Concurrent tasks completed.");
         }
+
+        private string? ResolveAssetPath(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName)) return null;
+
+            string basePath = _assetsPath ?? string.Empty;
+            if (string.IsNullOrEmpty(basePath) || !Directory.Exists(basePath))
+            {
+                basePath = Directory.Exists(@"C:\Assets")
+                    ? @"C:\Assets"
+                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
+            }
+
+            // 1. Direct check in assets folder or absolute path
+            if (Path.IsPathRooted(fileName) && File.Exists(fileName))
+            {
+                return fileName;
+            }
+
+            string directPath = Path.Combine(basePath, fileName);
+            if (File.Exists(directPath))
+            {
+                return directPath;
+            }
+
+            // 2. Check subdirectories of the assets folder
+            string pureName = Path.GetFileName(fileName);
+            if (Directory.Exists(basePath))
+            {
+                try
+                {
+                    var existingFiles = Directory.GetFiles(basePath, pureName, SearchOption.AllDirectories);
+                    if (existingFiles.Length > 0)
+                    {
+                        return existingFiles[0];
+                    }
+                }
+                catch { }
+
+                // 3. Fallback: scan all .zip archives in basePath
+                try
+                {
+                    var zipFiles = Directory.GetFiles(basePath, "*.zip", SearchOption.AllDirectories);
+                    foreach (var zipPath in zipFiles)
+                    {
+                        try
+                        {
+                            using var archive = ZipFile.OpenRead(zipPath);
+                            var matchEntry = archive.Entries.FirstOrDefault(e =>
+                                !string.IsNullOrEmpty(e.Name) &&
+                                (e.FullName.Equals(fileName.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase) ||
+                                 e.FullName.EndsWith("/" + fileName.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+                                ?? archive.Entries.FirstOrDefault(e =>
+                                !string.IsNullOrEmpty(e.Name) &&
+                                string.Equals(e.Name, pureName, StringComparison.OrdinalIgnoreCase));
+
+                            if (matchEntry != null)
+                            {
+                                Log($"   [RESOLVE] Found '{pureName}' inside '{Path.GetFileName(zipPath)}'. Extracting...");
+
+                                foreach (var entry in archive.Entries)
+                                {
+                                    if (string.IsNullOrEmpty(entry.Name)) continue;
+
+                                    string destFilePath = Path.Combine(basePath, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                                    string? destDir = Path.GetDirectoryName(destFilePath);
+                                    if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                                    {
+                                        Directory.CreateDirectory(destDir);
+                                    }
+
+                                    try
+                                    {
+                                        entry.ExtractToFile(destFilePath, overwrite: true);
+                                    }
+                                    catch { }
+                                }
+
+                                string targetExtracted = Path.Combine(basePath, matchEntry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                                if (File.Exists(targetExtracted))
+                                {
+                                    return targetExtracted;
+                                }
+
+                                string directExtract = Path.Combine(basePath, pureName);
+                                if (File.Exists(directExtract))
+                                {
+                                    return directExtract;
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [WARN] Could not inspect archive '{Path.GetFileName(zipPath)}': {ex.Message}");
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
         #endregion
     }
-
-
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -30,10 +30,10 @@ namespace PGInstaller.Viewmodel
                 Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
             }
 
-            string mmsZip = Path.Combine(_assetsPath!, "mms.zip");
-            string mmsExtractedDir = Path.Combine(_assetsPath!, "mms");
+            string? mmsZip = ResolveAssetPath("mms.zip");
+            string mmsExtractedDir = Path.Combine(_assetsPath ?? @"C:\Assets", "mms");
 
-            if (File.Exists(mmsZip) && !Directory.Exists(mmsExtractedDir))
+            if (!string.IsNullOrEmpty(mmsZip) && File.Exists(mmsZip) && !Directory.Exists(mmsExtractedDir))
             {
                 Log("   [INIT] Extracting mms.zip...");
                 try
@@ -47,17 +47,17 @@ namespace PGInstaller.Viewmodel
                 }
             }
             string relativeMsi = @"mms\image64a\cwbinstall.msi";
-            string fullMstPath = Path.Combine(_assetsPath!, @"mms\image64a\1033.mst");
+            string? fullMstPath = ResolveAssetPath(@"mms\image64a\1033.mst") ?? Path.Combine(_assetsPath ?? @"C:\Assets", @"mms\image64a\1033.mst");
             string msiArgs = $"TRANSFORMS=\"{fullMstPath}\" /qn /norestart";
 
             await SmartInstall("IBM i Access 7.1", relativeMsi, msiArgs, checkAppName);
 
             string mmsFileName = "MMS.ws";
-            string mmsSource = Path.Combine(_assetsPath!, mmsFileName);
+            string? mmsSource = ResolveAssetPath(mmsFileName);
             string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
             string mmsDest = Path.Combine(publicDesktop, mmsFileName);
 
-            if (File.Exists(mmsSource) && !File.Exists(mmsDest))
+            if (!string.IsNullOrEmpty(mmsSource) && File.Exists(mmsSource) && !File.Exists(mmsDest))
             {
                 try
                 {
@@ -70,10 +70,10 @@ namespace PGInstaller.Viewmodel
                 }
             }
             string kmpFileName = "AS400.KMP";
-            string kmpSource = Path.Combine(_assetsPath!, kmpFileName);
+            string? kmpSource = ResolveAssetPath(kmpFileName);
             string kmpDest = @"C:\AS400.KMP";
 
-            if (File.Exists(kmpSource))
+            if (!string.IsNullOrEmpty(kmpSource) && File.Exists(kmpSource))
             {
                 try
                 {
@@ -88,19 +88,21 @@ namespace PGInstaller.Viewmodel
         }
         private async Task ApplyRadminServer()
         {
-            string installBatPath = Path.Combine(_assetsPath!, "install.bat");
-            if (File.Exists(installBatPath))
+            string? installBatPath = ResolveAssetPath("install.bat");
+            if (!string.IsNullOrEmpty(installBatPath) && File.Exists(installBatPath))
             {
+                string? dll1 = ResolveAssetPath("newtstop.dll");
+                string? dll2 = ResolveAssetPath("nts64helper.dll");
                 if (
-                    File.Exists(Path.Combine(_assetsPath!, "newtstop.dll"))
-                    && File.Exists(Path.Combine(_assetsPath!, "nts64helper.dll"))
+                    !string.IsNullOrEmpty(dll1) && File.Exists(dll1)
+                    && !string.IsNullOrEmpty(dll2) && File.Exists(dll2)
                 )
                 {
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
                         Arguments = $"/c \"{installBatPath}\"",
-                        WorkingDirectory = _assetsPath!,
+                        WorkingDirectory = Path.GetDirectoryName(installBatPath),
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardOutput = true,
@@ -124,10 +126,10 @@ namespace PGInstaller.Viewmodel
         private async Task InstallInventoryTools()
         {
             string zipName = "inventorytools.zip";
-            string zipPath = Path.Combine(_assetsPath!, zipName);
+            string? zipPath = ResolveAssetPath(zipName);
             string targetDir = @"C:\wamp64\www\puregold";
 
-            if (File.Exists(zipPath))
+            if (!string.IsNullOrEmpty(zipPath) && File.Exists(zipPath))
             {
                 Log($"   [DEPLOY] Deploying {zipName}...");
 
@@ -241,9 +243,9 @@ namespace PGInstaller.Viewmodel
             if (targetPath != null)
             {
                 Log($"   [CONFIG] Pinning {appName} to Taskbar...");
-                string scriptPath = Path.Combine(_assetsPath!, "Pin-Taskbar.ps1");
+                string? scriptPath = ResolveAssetPath("Pin-Taskbar.ps1");
 
-                if (File.Exists(scriptPath))
+                if (!string.IsNullOrEmpty(scriptPath) && File.Exists(scriptPath))
                 {
                     string safePath = targetPath.Replace("'", "''");
 
@@ -281,9 +283,9 @@ namespace PGInstaller.Viewmodel
         private async Task InstallAVGW()
         {
             string exeName = "A&VGWSetup.exe";
-            string installerPath = Path.Combine(_assetsPath!, exeName);
+            string? installerPath = ResolveAssetPath(exeName);
 
-            if (!File.Exists(installerPath))
+            if (string.IsNullOrEmpty(installerPath) || !File.Exists(installerPath))
             {
                 Log($"   [ERROR] {exeName} not found in Assets.");
                 return;
@@ -350,9 +352,9 @@ namespace PGInstaller.Viewmodel
         {
             try
             {
-                string regFile = Path.Combine(_assetsPath!, "radmin_config.reg");
+                string? regFile = ResolveAssetPath("radmin_config.reg");
 
-                if (File.Exists(regFile))
+                if (!string.IsNullOrEmpty(regFile) && File.Exists(regFile))
                 {
                     Log("   [CONFIG] Importing Radmin Server settings (Port 12, Radmin Security, User: administrator)...");
                     await RunProcessAsync("reg", $"import \"{regFile}\"", "Importing Radmin configuration", true);
@@ -448,11 +450,11 @@ Require all granted
                         string dll1 = "php_sqlsrv_83_ts_x64.dll";
                         string dll2 = "php_pdo_sqlsrv_83_ts_x64.dll";
 
-                        string sourceDll1 = Path.Combine(_assetsPath!, dll1);
-                        string sourceDll2 = Path.Combine(_assetsPath!, dll2);
+                        string? sourceDll1 = ResolveAssetPath(dll1);
+                        string? sourceDll2 = ResolveAssetPath(dll2);
 
-                        if (File.Exists(sourceDll1)) File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
-                        if (File.Exists(sourceDll2)) File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
+                        if (!string.IsNullOrEmpty(sourceDll1) && File.Exists(sourceDll1)) File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
+                        if (!string.IsNullOrEmpty(sourceDll2) && File.Exists(sourceDll2)) File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
 
                         string iniPath = Path.Combine(phpVerDir, "phpForApache.ini");
                         if (File.Exists(iniPath))
@@ -490,10 +492,10 @@ Require all granted
 
         private async Task PasteVARIANCE()
         {
-            string varianceZip = Path.Combine(_assetsPath!, "variance.zip");
+            string? varianceZip = ResolveAssetPath("variance.zip");
             string targetDir = @"C:\wamp64\www\puregold";
 
-            if (File.Exists(varianceZip))
+            if (!string.IsNullOrEmpty(varianceZip) && File.Exists(varianceZip))
             {
                 Log("   [DEPLOY] Unzipping Variance System...");
                 try
@@ -553,10 +555,10 @@ Require all granted
         private async Task InstallNetFx3()
         {
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
-            string netfxZip = Path.Combine(_assetsPath!, "netfx.zip");
+            string? netfxZip = ResolveAssetPath("netfx.zip");
             string netfxExtractDir = @"C:\Assets\NetFX3_Source";
 
-            if (!File.Exists(netfxZip))
+            if (string.IsNullOrEmpty(netfxZip) || !File.Exists(netfxZip))
             {
                 Log("   [ERROR] netfx.zip not found in Assets.");
                 return;
@@ -621,10 +623,10 @@ Require all granted
         {
             await InstallNetFx3();
 
-            string pimsZip = Path.Combine(_assetsPath!, "pims.zip");
+            string? pimsZip = ResolveAssetPath("pims.zip");
             string pimsRoot = @"C:\Assets\PG_PIMS_Install";
 
-            if (!File.Exists(pimsZip))
+            if (string.IsNullOrEmpty(pimsZip) || !File.Exists(pimsZip))
             {
                 Log("   [ERROR] pims.zip not found in Assets.");
                 return;
@@ -825,13 +827,13 @@ Require all granted
 
         private async Task InstallFSDM()
         {
-            string fsdmZip = Path.Combine(_assetsPath!, "FSDM.zip");
+            string? fsdmZip = ResolveAssetPath("FSDM.zip");
             string tempFsdmRoot = @"C:\Assets\PG_FSDM_Install";
 
             if (Directory.Exists(tempFsdmRoot))
                 try { Directory.Delete(tempFsdmRoot, true); } catch { }
 
-            if (!File.Exists(fsdmZip))
+            if (string.IsNullOrEmpty(fsdmZip) || !File.Exists(fsdmZip))
             {
                 Log("   [ERROR] FSDM.zip not found in Assets.");
                 return;
@@ -959,9 +961,9 @@ Require all granted
             if (installX5)
             {
                 string corelX5Exe = "crdx5.exe";
-                string corelX5Path = Path.Combine(_assetsPath!, corelX5Exe);
+                string? corelX5Path = ResolveAssetPath(corelX5Exe);
 
-                if (File.Exists(corelX5Path))
+                if (!string.IsNullOrEmpty(corelX5Path) && File.Exists(corelX5Path))
                 {
                     await RunProcessAsync(corelX5Path, "", "Launching CorelDRAW X5 Installer");
 
@@ -993,9 +995,9 @@ Require all granted
             if (installX7)
             {
                 string corelX7Exe = "crdx7.exe";
-                string corelX7Path = Path.Combine(_assetsPath!, corelX7Exe);
+                string? corelX7Path = ResolveAssetPath(corelX7Exe);
 
-                if (File.Exists(corelX7Path))
+                if (!string.IsNullOrEmpty(corelX7Path) && File.Exists(corelX7Path))
                 {
                     await RunProcessAsync(corelX7Path, "", "Launching CorelDRAW X7 Installer");
 
@@ -1025,9 +1027,9 @@ Require all granted
             }
 
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string illuZip = Path.Combine(_assetsPath!, "illucs6.zip");
+            string? illuZip = ResolveAssetPath("illucs6.zip");
 
-            if (File.Exists(illuZip))
+            if (!string.IsNullOrEmpty(illuZip) && File.Exists(illuZip))
             {
                 string destDir = Path.Combine(progFiles, "IllustratorCS6Portable");
                 string exePath = Path.Combine(destDir, "IllustratorCS6Portable.exe");
@@ -1057,9 +1059,9 @@ Require all granted
                 Log("   [SKIP] illucs6.zip not found.");
             }
 
-            string psZip = Path.Combine(_assetsPath!, "pscs6.zip");
+            string? psZip = ResolveAssetPath("pscs6.zip");
 
-            if (File.Exists(psZip))
+            if (!string.IsNullOrEmpty(psZip) && File.Exists(psZip))
             {
                 string destDir = Path.Combine(progFiles, "PhotoshopCS6Portable");
                 string exePath = Path.Combine(destDir, "PhotoshopCS6Portable.exe");
@@ -1121,20 +1123,6 @@ Require all granted
         private async Task InstallPutty()
         {
             await SmartInstall("PuTTY", "putty.msi", "/qn", "PuTTY");
-            string regFile = Path.Combine(_assetsPath!, "Zone 11.reg");
-
-            if (File.Exists(regFile))
-            {
-                await RunProcessAsync(
-                     "reg",
-                    $"import \"{regFile}\"",
-                     "Applying Zone 11 Registry Settings"
-                );
-            }
-            else
-            {
-                Log($"   [WARN] Registry file missing: {Path.GetFileName(regFile)}");
-            }
             IncrementProgress();
         }
 
@@ -1142,9 +1130,9 @@ Require all granted
         {
             await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
             string rpbName = "radmin.rpb";
-            string sourceRpb = Path.Combine(_assetsPath!, rpbName);
+            string? sourceRpb = ResolveAssetPath(rpbName);
 
-            if (File.Exists(sourceRpb))
+            if (!string.IsNullOrEmpty(sourceRpb) && File.Exists(sourceRpb))
             {
                 try
                 {
@@ -1179,9 +1167,9 @@ Require all granted
             );
 
             string iniName = "WinSCP.ini";
-            string iniSource = Path.Combine(_assetsPath!, iniName);
+            string? iniSource = ResolveAssetPath(iniName);
 
-            if (File.Exists(iniSource))
+            if (!string.IsNullOrEmpty(iniSource) && File.Exists(iniSource))
             {
                 string[] installDirs =
                 [
@@ -1245,7 +1233,8 @@ Require all granted
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
-                var files = Directory.GetFiles(_assetsPath!, "*.csv", SearchOption.AllDirectories);
+                string searchBase = Directory.Exists(_assetsPath) ? _assetsPath : @"C:\Assets";
+                var files = Directory.GetFiles(searchBase, "*.csv", SearchOption.AllDirectories);
                 var match = files.FirstOrDefault(f => Path.GetFileName(f).Contains("ZONE11", StringComparison.OrdinalIgnoreCase));
 
                 if (match == null)
@@ -1258,8 +1247,8 @@ Require all granted
                 string csvFileName = Path.GetFileName(sourceCsv);
                 File.Copy(sourceCsv, Path.Combine(tempDir, csvFileName), true);
 
-                string sourceScript = Path.Combine(_assetsPath!, scriptName);
-                if (!File.Exists(sourceScript))
+                string? sourceScript = ResolveAssetPath(scriptName);
+                if (string.IsNullOrEmpty(sourceScript) || !File.Exists(sourceScript))
                 {
                     Log($"   [ERROR] {scriptName} not found in Assets.");
                     return;
@@ -1307,14 +1296,14 @@ Require all granted
 
             Log($"   [INIT] Installing {selectedDriver}...");
 
-            string driverExe = selectedDriver switch
+            string? driverExe = selectedDriver switch
             {
-                "Argox Driver" => Path.Combine(_assetsPath!, "argox_drvr.exe"),
-                "Zebra Driver" => Path.Combine(_assetsPath!, "zebra_drvr.exe"),
+                "Argox Driver" => ResolveAssetPath("argox_drvr.exe"),
+                "Zebra Driver" => ResolveAssetPath("zebra_drvr.exe"),
                 _ => throw new InvalidOperationException("Invalid driver selection")
             };
 
-            if (File.Exists(driverExe))
+            if (!string.IsNullOrEmpty(driverExe) && File.Exists(driverExe))
             {
                 await RunProcessAsync(driverExe, "", $"Installing {selectedDriver} (Interactive)");
             }
@@ -1353,9 +1342,9 @@ Require all granted
 
             Log($"   [INIT] Starting {selectedVersion} Installation...");
 
-            string installerPath = Path.Combine(_assetsPath!, installerExe);
+            string? installerPath = ResolveAssetPath(installerExe);
 
-            if (!File.Exists(installerPath))
+            if (string.IsNullOrEmpty(installerPath) || !File.Exists(installerPath))
             {
                 Log($"   [ERROR] {installerExe} not found in Assets.");
                 return;
@@ -1368,10 +1357,10 @@ Require all granted
                 Log("   [PATCH] Applying BarTend.exe patch for Bartender 10.1...");
 
 
-                string patchedExe = Path.Combine(_assetsPath!, "bartend.exe");
+                string? patchedExe = ResolveAssetPath("bartend.exe");
                 string targetExe = @"C:\Program Files (x86)\Seagull\BarTender Suite\BarTend.exe";
 
-                if (File.Exists(patchedExe))
+                if (!string.IsNullOrEmpty(patchedExe) && File.Exists(patchedExe))
                 {
                     try
                     {
@@ -1402,10 +1391,10 @@ Require all granted
                 }
             }
 
-            string btZip = Path.Combine(_assetsPath!, "bt.zip");
+            string? btZip = ResolveAssetPath("bt.zip");
             string templatesDest = @"C:\Bartender Templates";
 
-            if (File.Exists(btZip))
+            if (!string.IsNullOrEmpty(btZip) && File.Exists(btZip))
             {
                 Log("   [DEPLOY] Setting up Bartender Templates...");
                 try
