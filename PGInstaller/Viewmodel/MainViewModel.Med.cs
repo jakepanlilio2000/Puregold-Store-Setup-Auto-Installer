@@ -37,6 +37,13 @@ namespace PGInstaller.Viewmodel
                 string relativePath = Path.Combine("activators", fileName);
                 string? fullPath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
 
+                // Lazy on-demand extraction if file does not yet exist in Assets
+                if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath))
+                {
+                    await ExtractSpecificFile(null, $"*{fileName}*");
+                    fullPath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
+                }
+
                 if (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath))
                 {
                     Log($"   [LAUNCH] Opening {SelectedMedicineName}...");
@@ -77,3 +84,4 @@ namespace PGInstaller.Viewmodel
         }
     }
 }
+

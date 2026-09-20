@@ -21,6 +21,7 @@ namespace PGInstaller.Viewmodel
 
         private string? _sharedDatabaseIp;
         private CancellationTokenSource? _checkInstalledCts;
+        private int? _posCount;
 
         [ObservableProperty] private string? _logOutput;
         [ObservableProperty] private bool _isBusy;
@@ -286,6 +287,7 @@ namespace PGInstaller.Viewmodel
         private void UpdatePendingTasksCount()
         {
             PendingTasksCount = PreviewList.Count(x => (!x.IsInstalled && x.IsChecked) || (x.IsInstalled && x.ForceInstall));
+            OnPropertyChanged(nameof(PendingTasksCount));
         }
 
         private async Task CheckDomainStatusAsync()
@@ -335,7 +337,7 @@ namespace PGInstaller.Viewmodel
                 return;
             }
 
-            TotalSteps = PreviewList.Count;
+            TotalSteps = selectedApps.Count + 4;
             CurrentStep = 0;
             ProgressPercentage = 0;
             CurrentTaskDescription = "Initializing installation...";
@@ -364,10 +366,19 @@ namespace PGInstaller.Viewmodel
                     return;
                 }
 
+                _posCount = null;
+                bool needsPosConfig = selectedApps.Any(a => a.Contains("PuTTY", StringComparison.OrdinalIgnoreCase) || 
+                                                           a.Contains("WinSCP", StringComparison.OrdinalIgnoreCase));
+                if (needsPosConfig)
+                {
+                    await GetOrPromptPosCountAsync();
+                }
+
                 ApplySystemOptimizations();
 
                 Log("   [CONFIG] Disabling Windows Firewall...");
                 await RunProcessAsync("netsh", "advfirewall set allprofiles state off", "Disabling Windows Firewall", true);
+                IncrementProgress();
 
                 bool assetsReady = await PrepareAssets();
                 if (!assetsReady)
@@ -375,6 +386,7 @@ namespace PGInstaller.Viewmodel
                     Log("CRITICAL: Failed to prepare assets. Stopping.");
                     return;
                 }
+                IncrementProgress();
 
                 switch (SelectedDepartment)
                 {
@@ -395,6 +407,8 @@ namespace PGInstaller.Viewmodel
                         Log("No specific package defined for this department yet.");
                         break;
                 }
+                IncrementProgress();
+                ProgressPercentage = 100;
             }
             catch (Exception ex)
             {
@@ -407,6 +421,26 @@ namespace PGInstaller.Viewmodel
                 Log("Process Completed.");
                 Application.Current.Dispatcher.Invoke(ShowInstallationSummary);
             }
+        }
+
+        private async Task<int> GetOrPromptPosCountAsync()
+        {
+            if (_posCount.HasValue) return _posCount.Value;
+
+            string input = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("How many POS terminals does this store have?", "10"));
+
+            if (int.TryParse(input?.Trim(), out int count) && count > 0)
+            {
+                _posCount = count;
+            }
+            else
+            {
+                Log("   [INFO] Invalid or cancelled POS count input. Defaulting to 10 POS terminals.");
+                _posCount = 10;
+            }
+
+            return _posCount.Value;
         }
 
         private async Task SmartInstall(
@@ -476,10 +510,10 @@ namespace PGInstaller.Viewmodel
             if (selectedApps.Contains("Microsoft Edge"))
                 await SmartInstall("Microsoft Edge", "edge.msi", "/quiet", "Microsoft Edge");
             if (selectedApps.Contains("WinRAR"))
-                await SmartInstall("WinRAR", "winrar.exe", "/S", "WinRAR");
+                await SmartInstall("WinRAR", "winrar.exe", "/S /EI", "WinRAR");
             if (selectedApps.Contains("Revo Uninstaller Pro"))
             {
-                await SmartInstall("Revo Uninstaller", "revo.exe", "/S /E", "Revo Uninstaller");
+                await SmartInstall("Revo Uninstaller", "revo.exe", "/S /EI", "Revo Uninstaller");
                 try
                 {
                     using var key = Registry.CurrentUser.CreateSubKey(@"Software\VS Revo Group\Revo Uninstaller Pro\General");
@@ -489,7 +523,7 @@ namespace PGInstaller.Viewmodel
                 catch { }
             }
             if (selectedApps.Contains("IObit Driver Booster"))
-                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /E", "Driver Booster");
+                await SmartInstall("IObit Driver Booster", "drv.exe", "/S /EI", "Driver Booster");
             if (selectedApps.Contains("Notepad++"))
                 await SmartInstall("Notepad++", "npp.exe", "/S", "Notepad++");
             if (selectedApps.Contains("Mozilla Thunderbird"))
@@ -660,7 +694,7 @@ namespace PGInstaller.Viewmodel
                     try
                     {
                         Directory.CreateDirectory(extractPath);
-                        await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractPath));
+                        await ExtractWithProgress(zipPath, extractPath, CreateStepProgress($"Unzipping {zipName}"));
                     }
                     catch (Exception ex)
                     {
@@ -709,6 +743,95 @@ namespace PGInstaller.Viewmodel
             {
                 Log($"   [SKIP] Zip not found: {zipName}");
             }
+        }
+
+        /// <summary>
+        /// Extracts a zip archive to a destination directory reporting real-time progress (0-100%).
+        /// </summary>
+        /// <param name="zipPath">Path to the zip file to extract.</param>
+        /// <param name="extractPath">Target directory path.</param>
+        /// <param name="progress">Progress callback reporting percentage.</param>
+        /// <param name="overwrite">Whether to overwrite existing files.</param>
+        public async Task ExtractWithProgress(string zipPath, string extractPath, IProgress<int>? progress = null, bool overwrite = true)
+        {
+            if (!File.Exists(zipPath))
+            {
+                Log($"   [ERROR] Archive not found for extraction: {zipPath}");
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(extractPath);
+                    using var archive = ZipFile.OpenRead(zipPath);
+                    int totalEntries = archive.Entries.Count;
+                    if (totalEntries == 0)
+                    {
+                        progress?.Report(100);
+                        return;
+                    }
+
+                    int processed = 0;
+                    int lastReportedPercent = -1;
+
+                    foreach (var entry in archive.Entries)
+                    {
+                        string destinationPath = Path.GetFullPath(Path.Combine(extractPath, entry.FullName));
+                        if (!destinationPath.StartsWith(Path.GetFullPath(extractPath), StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        if (string.IsNullOrEmpty(entry.Name))
+                        {
+                            Directory.CreateDirectory(destinationPath);
+                        }
+                        else
+                        {
+                            string? parentDir = Path.GetDirectoryName(destinationPath);
+                            if (!string.IsNullOrEmpty(parentDir)) Directory.CreateDirectory(parentDir);
+
+                            entry.ExtractToFile(destinationPath, overwrite);
+                        }
+
+                        processed++;
+                        int currentPercent = (int)((double)processed / totalEntries * 100);
+                        if (currentPercent != lastReportedPercent)
+                        {
+                            lastReportedPercent = currentPercent;
+                            progress?.Report(currentPercent);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Extraction exception: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Creates an IProgress instance that scales progress within the current step of TotalSteps.
+        /// </summary>
+        /// <param name="operationName">Name of the operation shown in CurrentTaskDescription.</param>
+        public IProgress<int> CreateStepProgress(string operationName)
+        {
+            return new Progress<int>(pct =>
+            {
+                CurrentTaskDescription = $"{operationName}... {pct}%";
+                if (TotalSteps > 0)
+                {
+                    double basePct = (double)CurrentStep / TotalSteps * 100.0;
+                    double stepWeight = 100.0 / TotalSteps;
+                    ProgressPercentage = Math.Min(100, (int)(basePct + (stepWeight * pct / 100.0)));
+                }
+                else
+                {
+                    ProgressPercentage = pct;
+                }
+            });
         }
 
         #endregion
@@ -915,15 +1038,6 @@ namespace PGInstaller.Viewmodel
         {
             CurrentTaskDescription = description;
 
-            if (description.Contains("Installing", StringComparison.OrdinalIgnoreCase) ||
-                description.Contains("Deploying", StringComparison.OrdinalIgnoreCase) ||
-                description.Contains("Configuring", StringComparison.OrdinalIgnoreCase) ||
-                description.Contains("Patching", StringComparison.OrdinalIgnoreCase))
-            {
-                CurrentStep++;
-                ProgressPercentage = TotalSteps > 0 ? Math.Min(100, (int)((double)CurrentStep / TotalSteps * 100)) : 0;
-            }
-
             Log($"[{DateTime.Now:HH:mm:ss}] {description}...");
             var tcs = new TaskCompletionSource<bool>();
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -932,6 +1046,7 @@ namespace PGInstaller.Viewmodel
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
+                    ParseOutputProgress(e.Data);
                     string l = CleanLogLine(e.Data);
                     if (l != null)
                         Log($"    > {l}");
@@ -942,6 +1057,7 @@ namespace PGInstaller.Viewmodel
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
+                    ParseOutputProgress(e.Data);
                     string l = CleanLogLine(e.Data);
                     if (l != null)
                         Log($"    > {l}");
@@ -967,6 +1083,25 @@ namespace PGInstaller.Viewmodel
                 if (!suppressError)
                     Log($"   [FAILED] Process Error: {ex.Message}");
                 return false;
+            }
+        }
+
+        private void ParseOutputProgress(string data)
+        {
+            if (string.IsNullOrWhiteSpace(data)) return;
+            var match = Regex.Match(data, @"\b(\d{1,3})\s*%");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int pct) && pct >= 0 && pct <= 100)
+            {
+                if (TotalSteps > 0)
+                {
+                    double basePct = (double)CurrentStep / TotalSteps * 100.0;
+                    double stepWeight = 100.0 / TotalSteps;
+                    ProgressPercentage = Math.Min(100, (int)(basePct + (stepWeight * pct / 100.0)));
+                }
+                else
+                {
+                    ProgressPercentage = pct;
+                }
             }
         }
 

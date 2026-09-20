@@ -22,9 +22,14 @@ namespace PGInstaller.Viewmodel
 
             try
             {
-                await PrepareAssets();
-                string scriptRelative = Path.Combine("activators", "MAS_AIO.cmd");
-                string? sourcePath = ResolveAssetPath(scriptRelative) ?? ResolveAssetPath("MAS_AIO.cmd");
+                // Lazy extraction: extract only the activator files rather than the entire assets.zip
+                await ExtractSpecificFile(null, "*MAS_AIO*");
+
+                string basePath = _assetsPath ?? @"C:\Assets";
+                string primaryPath = Path.Combine(basePath, "activators", "MAS_AIO.cmd");
+                string? sourcePath = File.Exists(primaryPath)
+                    ? primaryPath
+                    : (ResolveAssetPath(Path.Combine("activators", "MAS_AIO.cmd")) ?? ResolveAssetPath("MAS_AIO.cmd"));
 
                 if (!string.IsNullOrEmpty(sourcePath) && File.Exists(sourcePath))
                 {
@@ -80,7 +85,12 @@ namespace PGInstaller.Viewmodel
 
             try
             {
-                await PrepareAssets();
+                // Lazy on-demand extraction for individual script execution
+                await ExtractSpecificFile(null, $"*{Path.GetFileName(scriptName)}*");
+                if (!string.IsNullOrEmpty(altName))
+                {
+                    await ExtractSpecificFile(null, $"*{Path.GetFileName(altName)}*");
+                }
 
                 string? scriptPath = ResolveAssetPath(scriptName);
                 if ((string.IsNullOrEmpty(scriptPath) || !File.Exists(scriptPath)) && !string.IsNullOrEmpty(altName))
@@ -136,3 +146,4 @@ namespace PGInstaller.Viewmodel
         }
     }
 }
+

@@ -39,7 +39,7 @@ namespace PGInstaller.Viewmodel
                 try
                 {
                     Directory.CreateDirectory(mmsExtractedDir);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(mmsZip, mmsExtractedDir));
+                    await ExtractWithProgress(mmsZip, mmsExtractedDir, CreateStepProgress("Extracting MMS"));
                 }
                 catch (Exception ex)
                 {
@@ -119,7 +119,6 @@ namespace PGInstaller.Viewmodel
             {
                 Log("   [WARNING] install.bat not found in Assets.");
             }
-            await ConfigureRadminServer();
             IncrementProgress();
         }
 
@@ -140,10 +139,7 @@ namespace PGInstaller.Viewmodel
                         Directory.CreateDirectory(targetDir);
                     }
 
-                    await Task.Run(() =>
-                    {
-                        ZipFile.ExtractToDirectory(zipPath, targetDir, true);
-                    });
+                    await ExtractWithProgress(zipPath, targetDir, CreateStepProgress("Extracting Inventory Tools"), overwrite: true);
 
                     Log("   [SUCCESS] Inventory Tools deployed.");
                 }
@@ -348,48 +344,6 @@ namespace PGInstaller.Viewmodel
             IncrementProgress();
         }
 
-        private async Task ConfigureRadminServer()
-        {
-            try
-            {
-                string? regFile = ResolveAssetPath("radmin_config.reg");
-
-                if (!string.IsNullOrEmpty(regFile) && File.Exists(regFile))
-                {
-                    Log("   [CONFIG] Importing Radmin Server settings (Port 12, Radmin Security, User: administrator)...");
-                    await RunProcessAsync("reg", $"import \"{regFile}\"", "Importing Radmin configuration", true);
-
-                    string rserverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "rserver30", "rserver3.exe");
-                    if (!File.Exists(rserverPath))
-                    {
-                        rserverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.SystemX86), "rserver30", "rserver3.exe");
-                    }
-
-                    if (File.Exists(rserverPath))
-                    {
-                        await RunProcessAsync(rserverPath, "/stop", "Stopping Radmin Server service", true);
-                        await Task.Delay(1000);
-                        await RunProcessAsync(rserverPath, "/start", "Starting Radmin Server service", true);
-                    }
-                    else
-                    {
-                        Log("   [WARN] rserver3.exe not found. Please restart the Radmin Server service manually to apply settings.");
-                    }
-
-                    Log("   [SUCCESS] Radmin Server configured for Radmin Security.");
-                }
-                else
-                {
-                    Log("   [WARN] radmin_config.reg not found in Assets folder.");
-                    Log("   [INFO] Please configure Radmin Server manually and export the registry key to Assets\\radmin_config.reg");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"   [ERROR] Failed to configure Radmin Server: {ex.Message}");
-            }
-            IncrementProgress();
-        }
         private async Task InstallWampServer()
         {
             if (!File.Exists(@"C:\wamp64\wampmanager.exe"))
@@ -501,7 +455,7 @@ Require all granted
                 try
                 {
                     if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(varianceZip, targetDir, true));
+                    await ExtractWithProgress(varianceZip, targetDir, CreateStepProgress("Extracting Variance"), overwrite: true);
                     Log("   [SUCCESS] Variance deployed to www/puregold.");
                 }
                 catch (Exception ex) { Log($"   [ERROR] Variance Deploy failed: {ex.Message}"); }
@@ -570,7 +524,7 @@ Require all granted
                 try
                 {
                     Directory.CreateDirectory(netfxExtractDir);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(netfxZip, netfxExtractDir));
+                    await ExtractWithProgress(netfxZip, netfxExtractDir, CreateStepProgress("Extracting NetFX3"));
                 }
                 catch (Exception ex)
                 {
@@ -638,7 +592,7 @@ Require all granted
                 try
                 {
                     Directory.CreateDirectory(pimsRoot);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(pimsZip, pimsRoot));
+                    await ExtractWithProgress(pimsZip, pimsRoot, CreateStepProgress("Extracting PIMS"));
                 }
                 catch (Exception ex)
                 {
@@ -843,7 +797,7 @@ Require all granted
             try
             {
                 Directory.CreateDirectory(tempFsdmRoot);
-                await Task.Run(() => ZipFile.ExtractToDirectory(fsdmZip, tempFsdmRoot));
+                await ExtractWithProgress(fsdmZip, tempFsdmRoot, CreateStepProgress("Extracting FSDM"));
             }
             catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
 
@@ -867,7 +821,7 @@ Require all granted
 
                 try
                 {
-                    await Task.Run(() => ZipFile.ExtractToDirectory(fsDevZip, fsDestDir));
+                    await ExtractWithProgress(fsDevZip, fsDestDir, CreateStepProgress("Extracting FSDevMan"));
                 }
                 catch (Exception ex) { Log($"   [WARN] FSDevMan extract issue: {ex.Message}"); }
 
@@ -906,7 +860,7 @@ Require all granted
                 try
                 {
                     Directory.CreateDirectory(sdkTempDir);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(sdkZip, sdkTempDir));
+                    await ExtractWithProgress(sdkZip, sdkTempDir, CreateStepProgress("Extracting SDK"));
 
                     string regBat = Path.Combine(sdkTempDir, "Register_SDK_x64.bat");
 
@@ -1040,7 +994,7 @@ Require all granted
                     try
                     {
                         Directory.CreateDirectory(destDir);
-                        await Task.Run(() => ZipFile.ExtractToDirectory(illuZip, destDir));
+                        await ExtractWithProgress(illuZip, destDir, CreateStepProgress("Extracting Illustrator CS6"));
                     }
                     catch (Exception ex)
                     {
@@ -1072,7 +1026,7 @@ Require all granted
                     try
                     {
                         Directory.CreateDirectory(destDir);
-                        await Task.Run(() => ZipFile.ExtractToDirectory(psZip, destDir));
+                        await ExtractWithProgress(psZip, destDir, CreateStepProgress("Extracting Photoshop CS6"));
                     }
                     catch (Exception ex)
                     {
@@ -1123,37 +1077,14 @@ Require all granted
         private async Task InstallPutty()
         {
             await SmartInstall("PuTTY", "putty.msi", "/qn", "PuTTY");
+            int posCount = await GetOrPromptPosCountAsync();
+            await GeneratePOSConfigurations(posCount);
             IncrementProgress();
         }
 
         private async Task InstallRadminViewer()
         {
             await SmartInstall("Radmin Viewer", "radminv.msi", "/qn /norestart", "Radmin Viewer");
-            string rpbName = "radmin.rpb";
-            string? sourceRpb = ResolveAssetPath(rpbName);
-
-            if (!string.IsNullOrEmpty(sourceRpb) && File.Exists(sourceRpb))
-            {
-                try
-                {
-                    string roamingPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                    string destDir = Path.Combine(roamingPath, "Radmin");
-                    string destFile = Path.Combine(destDir, rpbName);
-
-                    Directory.CreateDirectory(destDir);
-                    File.Copy(sourceRpb, destFile, true);
-
-                    Log($"   [CONFIG] Applied Radmin Phonebook to: {destDir}");
-                }
-                catch (Exception ex)
-                {
-                    Log($"   [ERROR] Failed to copy Radmin phonebook: {ex.Message}");
-                }
-            }
-            else
-            {
-                Log($"   [WARN] Radmin phonebook not found: {rpbName}");
-            }
             IncrementProgress();
         }
 
@@ -1166,54 +1097,169 @@ Require all granted
                  "WinSCP"
             );
 
-            string iniName = "WinSCP.ini";
-            string? iniSource = ResolveAssetPath(iniName);
+            int posCount = await GetOrPromptPosCountAsync();
+            await GeneratePOSConfigurations(posCount);
+            IncrementProgress();
+        }
 
-            if (!string.IsNullOrEmpty(iniSource) && File.Exists(iniSource))
+        private string GetSubnetPrefix()
+        {
+            if (!string.IsNullOrWhiteSpace(TargetIp))
             {
-                string[] installDirs =
+                var parts = TargetIp.Trim().Split('.');
+                if (parts.Length == 4 && parts.All(p => int.TryParse(p, out int n) && n >= 0 && n <= 255))
+                {
+                    return $"{parts[0]}.{parts[1]}.{parts[2]}";
+                }
+            }
+            return "192.168.1";
+        }
+
+        private async Task GeneratePOSConfigurations(int posCount)
+        {
+            Log($"   [CONFIG] Generating dynamic POS configurations for {posCount} terminals...");
+            string subnet = GetSubnetPrefix();
+            string consoIp = $"{subnet}.50";
+
+            // --- 1. Dynamic WinSCP.ini Generation ---
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("[Configuration\\Security]");
+                sb.AppendLine("UseMasterPassword=0");
+                sb.AppendLine();
+                sb.AppendLine("[Configuration\\Interface]");
+                sb.AppendLine("Interface=1");
+                sb.AppendLine();
+
+                // Conso Server session
+                sb.AppendLine("[Sessions\\Conso%20Server]");
+                sb.AppendLine($"HostName={consoIp}");
+                sb.AppendLine("PortNumber=22");
+                sb.AppendLine("FSProtocol=0");
+                sb.AppendLine("UserName=");
+                sb.AppendLine();
+
+                // Zone 11 session
+                sb.AppendLine("[Sessions\\Zone%2011]");
+                sb.AppendLine($"HostName={consoIp}");
+                sb.AppendLine("PortNumber=22");
+                sb.AppendLine("FSProtocol=0");
+                sb.AppendLine("UserName=");
+                sb.AppendLine();
+
+                // POS 1 to N sessions
+                for (int i = 1; i <= posCount; i++)
+                {
+                    string posIp = $"{subnet}.{50 + i}";
+                    sb.AppendLine($"[Sessions\\POS%{20}{i}]");
+                    sb.AppendLine($"HostName={posIp}");
+                    sb.AppendLine("PortNumber=22");
+                    sb.AppendLine("FSProtocol=0");
+                    sb.AppendLine("UserName=");
+                    sb.AppendLine();
+                }
+
+                string iniContent = sb.ToString();
+                string[] winScpDirs =
                 [
-                    Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                         "WinSCP"
-                    ),
-                    Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                         "WinSCP"
-                    ),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinSCP"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP")
                 ];
 
-                bool copied = false;
-
-                foreach (string dir in installDirs)
+                bool written = false;
+                foreach (string dir in winScpDirs)
                 {
                     if (Directory.Exists(dir))
                     {
                         try
                         {
-                            string destFile = Path.Combine(dir, iniName);
-                            File.Copy(iniSource, destFile, true);
-                            Log($"   [CONFIG] WinSCP.ini imported to: {dir}");
-                            copied = true;
-                            break;
+                            string destFile = Path.Combine(dir, "WinSCP.ini");
+                            await File.WriteAllTextAsync(destFile, iniContent);
+                            Log($"   [CONFIG] Dynamic WinSCP.ini applied to: {destFile}");
+                            written = true;
                         }
                         catch (Exception ex)
                         {
-                            Log($"   [ERROR] Failed to copy WinSCP.ini: {ex.Message}");
+                            Log($"   [ERROR] Failed to write WinSCP.ini in {dir}: {ex.Message}");
                         }
                     }
                 }
 
-                if (!copied)
+                if (!written)
                 {
-                    Log("   [WARN] WinSCP installation folder not found. INI not imported.");
+                    string fallbackDir = winScpDirs[0];
+                    try
+                    {
+                        Directory.CreateDirectory(fallbackDir);
+                        string destFile = Path.Combine(fallbackDir, "WinSCP.ini");
+                        await File.WriteAllTextAsync(destFile, iniContent);
+                        Log($"   [CONFIG] WinSCP directory created and dynamic WinSCP.ini applied to: {destFile}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"   [ERROR] Failed to create WinSCP folder/ini: {ex.Message}");
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Log("   [SKIP] WinSCP.ini not found in Assets.");
+                Log($"   [ERROR] WinSCP configuration generation error: {ex.Message}");
             }
-            IncrementProgress();
+
+            // --- 2. Dynamic PuTTY Sessions / Registry Generation ---
+            try
+            {
+                var forwardings = new List<string>
+                {
+                    $"L10000={consoIp}:80",
+                    $"L5900={consoIp}:5900",
+                    $"L5984={consoIp}:5984"
+                };
+
+                for (int i = 1; i <= posCount; i++)
+                {
+                    string posIp = $"{subnet}.{50 + i}";
+                    forwardings.Add($"L{10000 + i}={posIp}:80");
+                    forwardings.Add($"L{5900 + i}={posIp}:5900");
+                    forwardings.Add($"L{2200 + i}={posIp}:22");
+                }
+
+                string portForwardingStr = string.Join(",", forwardings);
+                const string puttySessionsKey = @"Software\SimonTatham\PuTTY\Sessions";
+
+                void SaveSession(string sessionName, string host, int port, string? pf = null)
+                {
+                    string encodedSession = Uri.EscapeDataString(sessionName).Replace("+", "%20");
+                    using var key = Registry.CurrentUser.CreateSubKey($@"{puttySessionsKey}\{encodedSession}");
+                    if (key != null)
+                    {
+                        key.SetValue("HostName", host, RegistryValueKind.String);
+                        key.SetValue("PortNumber", port, RegistryValueKind.DWord);
+                        key.SetValue("Protocol", "ssh", RegistryValueKind.String);
+                        key.SetValue("CloseOnExit", 1, RegistryValueKind.DWord);
+                        if (!string.IsNullOrEmpty(pf))
+                        {
+                            key.SetValue("PortForwardings", pf, RegistryValueKind.String);
+                        }
+                    }
+                }
+
+                SaveSession("Zone 11", consoIp, 22, portForwardingStr);
+                SaveSession("Conso Server", consoIp, 22);
+
+                for (int i = 1; i <= posCount; i++)
+                {
+                    string posIp = $"{subnet}.{50 + i}";
+                    SaveSession($"POS {i}", posIp, 22);
+                }
+
+                Log($"   [SUCCESS] PuTTY sessions generated: Zone 11 (with {forwardings.Count} port forwardings), Conso Server, and POS 1..{posCount}.");
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] PuTTY configuration generation error: {ex.Message}");
+            }
         }
 
         private async Task RunChromeBookmarkScript()
@@ -1222,9 +1268,14 @@ Require all granted
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
 
             string ownIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter OWN IP (for Local Conso):", "192.168.1.xxx"));
+                ShowInputDialog("Enter OWN IP (for Local Conso):", !string.IsNullOrWhiteSpace(TargetIp) ? TargetIp : "192.168.1.101"));
 
-            if (string.IsNullOrWhiteSpace(ownIp)) { Log("   [SKIP] IP missing."); return; }
+            if (string.IsNullOrWhiteSpace(ownIp))
+            {
+                Log("   [SKIP] IP missing. Chrome Bookmarks configuration skipped.");
+                IncrementProgress();
+                return;
+            }
 
             string scriptName = "cbm.ps1";
             string tempDir = @"C:\Assets\PG_CBM_Exec";
@@ -1233,38 +1284,33 @@ Require all granted
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
-                string searchBase = Directory.Exists(_assetsPath) ? _assetsPath : @"C:\Assets";
-                var files = Directory.GetFiles(searchBase, "*.csv", SearchOption.AllDirectories);
-                var match = files.FirstOrDefault(f => Path.GetFileName(f).Contains("ZONE11", StringComparison.OrdinalIgnoreCase));
-
-                if (match == null)
-                {
-                    Log($"   [ERROR] CSV file containing 'ZONE11' not found. Script will fail.");
-                    return;
-                }
-
-                string sourceCsv = match;
-                string csvFileName = Path.GetFileName(sourceCsv);
-                File.Copy(sourceCsv, Path.Combine(tempDir, csvFileName), true);
 
                 string? sourceScript = ResolveAssetPath(scriptName);
                 if (string.IsNullOrEmpty(sourceScript) || !File.Exists(sourceScript))
                 {
-                    Log($"   [ERROR] {scriptName} not found in Assets.");
-                    return;
+                    string appBaseScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptName);
+                    if (File.Exists(appBaseScript))
+                    {
+                        sourceScript = appBaseScript;
+                    }
                 }
 
-                string scriptContent = File.ReadAllText(sourceScript);
-                scriptContent = scriptContent.Replace("{{OWN_IP}}", ownIp);
+                string targetScriptPath = Path.Combine(tempDir, scriptName);
+                if (!string.IsNullOrEmpty(sourceScript) && File.Exists(sourceScript))
+                {
+                    File.Copy(sourceScript, targetScriptPath, true);
+                }
+                else
+                {
+                    await File.WriteAllTextAsync(targetScriptPath, GetEmbeddedCbmScript());
+                }
 
-                string modifiedScriptPath = Path.Combine(tempDir, "cbm_modified.ps1");
-                File.WriteAllText(modifiedScriptPath, scriptContent);
                 Log("   [EXEC] Running CBM Script...");
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{modifiedScriptPath}\"",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{targetScriptPath}\" -Department \"{SelectedDepartment}\" -OwnIP \"{ownIp.Trim()}\"",
                     WorkingDirectory = tempDir,
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -1280,6 +1326,193 @@ Require all granted
                 Log($"   [ERROR] CBM Execution Failed: {ex.Message}");
             }
             IncrementProgress();
+        }
+
+        private static string GetEmbeddedCbmScript()
+        {
+            return """
+param(
+    [Parameter(Mandatory=$false)]
+    [string]$Department = "IT",
+
+    [Parameter(Mandatory=$false)]
+    [string]$OwnIP = "192.168.1.101"
+)
+
+$cleanIp = $OwnIP.Trim()
+if (-not ($cleanIp.StartsWith("http://", [System.StringComparison]::OrdinalIgnoreCase) -or $cleanIp.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase))) {
+    $cleanIp = "http://$cleanIp"
+}
+if (-not $cleanIp.EndsWith("/")) {
+    $cleanIp = "$cleanIp/"
+}
+
+$bookmarks = @(
+    @{ Name = "PCFPRO"; Url = "http://192.168.200.47/pcfpro/index.php" },
+    @{ Name = "My Portal"; Url = "http://myportal.puregold.local/index.php/login" },
+    @{ Name = "Local Conso"; Url = $cleanIp }
+)
+
+if ($Department -eq "IT") {
+    $bookmarks += @{ Name = "IT Tools"; Url = "http://192.168.200.107/IT_TOOLS/login.php" }
+    $bookmarks += @{ Name = "PurePOS HQ"; Url = "http://192.168.200.107/purepos_hq/" }
+}
+
+$localAppData = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
+$chromeBase = Join-Path $localAppData "Google\Chrome\User Data"
+
+$chromeProfiles = @()
+if (Test-Path $chromeBase) {
+    $defaultDir = Join-Path $chromeBase "Default"
+    if (-not (Test-Path $defaultDir)) {
+        New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null
+    }
+    $chromeProfiles += $defaultDir
+
+    $otherProfiles = Get-ChildItem -Path $chromeBase -Directory -Filter "Profile *" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    if ($otherProfiles) {
+        $chromeProfiles += $otherProfiles
+    }
+} else {
+    $defaultDir = Join-Path $chromeBase "Default"
+    New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null
+    $chromeProfiles += $defaultDir
+}
+
+Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
+
+foreach ($profileDir in $chromeProfiles) {
+    $bookmarksFile = Join-Path $profileDir "Bookmarks"
+    $jsonObj = $null
+
+    if (Test-Path $bookmarksFile) {
+        try {
+            $rawJson = Get-Content -Path $bookmarksFile -Raw -Encoding UTF8
+            $jsonObj = $rawJson | ConvertFrom-Json
+        } catch {
+            $jsonObj = $null
+        }
+    }
+
+    if (-not $jsonObj) {
+        $jsonObj = [PSCustomObject]@{
+            checksum = ""
+            roots = [PSCustomObject]@{
+                bookmark_bar = [PSCustomObject]@{
+                    children = @()
+                    date_added = "13300000000000000"
+                    date_last_used = "0"
+                    date_modified = "13300000000000000"
+                    id = "1"
+                    name = "Bookmarks bar"
+                    type = "folder"
+                }
+                other = [PSCustomObject]@{
+                    children = @()
+                    date_added = "13300000000000000"
+                    date_last_used = "0"
+                    date_modified = "0"
+                    id = "2"
+                    name = "Other bookmarks"
+                    type = "folder"
+                }
+                synced = [PSCustomObject]@{
+                    children = @()
+                    date_added = "13300000000000000"
+                    date_last_used = "0"
+                    date_modified = "0"
+                    id = "3"
+                    name = "Mobile bookmarks"
+                    type = "folder"
+                }
+            }
+            version = 1
+        }
+    }
+
+    if (-not $jsonObj.roots) {
+        $jsonObj | Add-Member -MemberType NoteProperty -Name "roots" -Value ([PSCustomObject]@{})
+    }
+    if (-not $jsonObj.roots.bookmark_bar) {
+        $jsonObj.roots | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{
+            children = @()
+            date_added = "13300000000000000"
+            date_last_used = "0"
+            date_modified = "13300000000000000"
+            id = "1"
+            name = "Bookmarks bar"
+            type = "folder"
+        })
+    }
+
+    $existingChildren = [System.Collections.ArrayList]@($jsonObj.roots.bookmark_bar.children)
+    $highestId = 10
+    function Find-MaxId($nodes) {
+        foreach ($node in $nodes) {
+            if ($node.id -match '^\d+$') {
+                $val = [int]$node.id
+                if ($val -gt $script:highestId) { $script:highestId = $val }
+            }
+            if ($node.children) {
+                Find-MaxId($node.children)
+            }
+        }
+    }
+    Find-MaxId($jsonObj.roots.bookmark_bar.children)
+    if ($jsonObj.roots.other -and $jsonObj.roots.other.children) { Find-MaxId($jsonObj.roots.other.children) }
+    if ($jsonObj.roots.synced -and $jsonObj.roots.synced.children) { Find-MaxId($jsonObj.roots.synced.children) }
+
+    foreach ($bm in $bookmarks) {
+        $targetName = $bm.Name
+        $targetUrl = $bm.Url
+
+        $existing = $null
+        foreach ($child in $existingChildren) {
+            if ($child.type -eq "url" -and ($child.name -eq $targetName -or $child.url -eq $targetUrl)) {
+                $existing = $child
+                break
+            }
+        }
+
+        if ($existing) {
+            $existing.name = $targetName
+            $existing.url = $targetUrl
+        } else {
+            $highestId++
+            $newEntry = [PSCustomObject]@{
+                date_added = "13300000000000000"
+                date_last_used = "0"
+                id = $highestId.ToString()
+                name = $targetName
+                type = "url"
+                url = $targetUrl
+            }
+            [void]$existingChildren.Add($newEntry)
+        }
+    }
+
+    $jsonObj.roots.bookmark_bar.children = $existingChildren
+    $jsonObj.checksum = ""
+
+    $outputJson = $jsonObj | ConvertTo-Json -Depth 32
+    [System.IO.File]::WriteAllText($bookmarksFile, $outputJson, [System.Text.Encoding]::UTF8)
+
+    $prefFile = Join-Path $profileDir "Preferences"
+    if (Test-Path $prefFile) {
+        try {
+            $prefJson = Get-Content -Path $prefFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (-not $prefJson.bookmark_bar) {
+                $prefJson | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{ show_on_all_tabs = $true })
+            } else {
+                $prefJson.bookmark_bar.show_on_all_tabs = $true
+            }
+            $updatedPref = $prefJson | ConvertTo-Json -Depth 32
+            [System.IO.File]::WriteAllText($prefFile, $updatedPref, [System.Text.Encoding]::UTF8)
+        } catch { }
+    }
+}
+""";
         }
 
         private async Task InstallBartenderDrivers(IEnumerable<string> selectedApps)
@@ -1311,6 +1544,7 @@ Require all granted
             {
                 Log($"   [ERROR] {selectedDriver} installer not found in Assets.");
             }
+            IncrementProgress();
         }
         private async Task InstallBartender(IEnumerable<string> selectedApps)
         {
@@ -1403,7 +1637,7 @@ Require all granted
                         Directory.Delete(templatesDest, true);
 
                     Directory.CreateDirectory(templatesDest);
-                    await Task.Run(() => ZipFile.ExtractToDirectory(btZip, templatesDest));
+                    await ExtractWithProgress(btZip, templatesDest, CreateStepProgress("Extracting BarTender Templates"));
                     Log($"   [SUCCESS] Templates extracted to {templatesDest}");
                 }
                 catch (Exception ex)
@@ -1415,6 +1649,7 @@ Require all granted
             {
                 Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
+            IncrementProgress();
         }
         private void EnsureWpsShortcutsForAllUsers()
         {

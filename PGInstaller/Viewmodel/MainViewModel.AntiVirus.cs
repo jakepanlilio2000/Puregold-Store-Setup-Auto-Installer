@@ -1,9 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace PGInstaller.Viewmodel
 {
@@ -21,106 +24,132 @@ namespace PGInstaller.Viewmodel
 
         public ObservableCollection<string> AntivirusList => new(AntivirusMap.Keys);
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanRunTool))]
         private async Task InstallAntivirus()
         {
+            if (IsBusy) return;
             if (string.IsNullOrEmpty(SelectedAntivirus)) return;
 
-            if (AntivirusMap.TryGetValue(SelectedAntivirus, out string? fileName))
-            {
-                string relativePath = Path.Combine("av", fileName);
-                string? fullSourcePath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
+            IsBusy = true;
+            NotifyCommands();
 
-                if (fileName.EndsWith(".zip"))
+            try
+            {
+                if (AntivirusMap.TryGetValue(SelectedAntivirus, out string? fileName))
                 {
+                    string relativePath = Path.Combine("av", fileName);
+                    string? fullSourcePath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
+
+                    // Lazy on-demand extraction if not found in Assets
                     if (string.IsNullOrEmpty(fullSourcePath) || !File.Exists(fullSourcePath))
                     {
-                        Log($"   [ERROR] {fileName} not found in Assets/av folder.");
-                        return;
+                        await ExtractSpecificFile(null, $"*{fileName}*");
+                        fullSourcePath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
                     }
-                    string extractDir = @"C:\Assets\AV_Install";
 
-                    if (Directory.Exists(extractDir))
-                        try { Directory.Delete(extractDir, true); } catch { }
-
-                    Directory.CreateDirectory(extractDir);
-
-                    Log($"   [EXTRACT] Unzipping {fileName}...");
-                    try
+                    if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                     {
-                        await Task.Run(() => ZipFile.ExtractToDirectory(fullSourcePath, extractDir));
-                    }
-                    catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
-
-                    if (SelectedAntivirus.Contains("Avast"))
-                    {
-                        Log("   [INSTALL] Starting Avast Silent Install...");
-
-                        var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault();
-
-                        if (cmdFile != null)
+                        if (string.IsNullOrEmpty(fullSourcePath) || !File.Exists(fullSourcePath))
                         {
-                            string? scriptDir = Path.GetDirectoryName(cmdFile);
+                            Log($"   [ERROR] {fileName} not found in Assets/av folder.");
+                            return;
+                        }
+                        string extractDir = @"C:\Assets\AV_Install";
 
-                            var startInfo = new ProcessStartInfo
+                        if (Directory.Exists(extractDir))
+                        {
+                            try { Directory.Delete(extractDir, true); } catch { }
+                        }
+
+                        Directory.CreateDirectory(extractDir);
+
+                        Log($"   [EXTRACT] Unzipping {fileName}...");
+                        try
+                        {
+                            await ExtractWithProgress(fullSourcePath, extractDir, CreateStepProgress($"Unzipping {fileName}"));
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [ERROR] Extraction failed: {ex.Message}");
+                            return;
+                        }
+
+                        if (SelectedAntivirus.Contains("Avast", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log("   [INSTALL] Starting Avast Silent Install...");
+
+                            var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault();
+
+                            if (cmdFile != null)
                             {
-                                FileName = "cmd.exe",
-                                Arguments = $"/c \"{cmdFile}\"",
-                                WorkingDirectory = scriptDir,
-                                UseShellExecute = false,
-                                CreateNoWindow = true,
-                                RedirectStandardOutput = true,
-                                RedirectStandardError = true
-                            };
+                                string? scriptDir = Path.GetDirectoryName(cmdFile);
 
-                            await RunCustomProcess(startInfo, "Avast Setup");
-                        }
-                        else
-                        {
-                            Log("   [ERROR] 'Silent Installing.cmd' not found.");
-                        }
-                    }
-                    else if (SelectedAntivirus.Contains("Symantec"))
-                    {
-                        Log("   [INSTALL] Starting Symantec Endpoint Protection Silent Install...");
-                        var setupExe = Directory.GetFiles(extractDir, "Setup.exe", SearchOption.AllDirectories).FirstOrDefault();
+                                var startInfo = new ProcessStartInfo
+                                {
+                                    FileName = "cmd.exe",
+                                    Arguments = $"/c \"{cmdFile}\"",
+                                    WorkingDirectory = scriptDir,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true,
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true
+                                };
 
-                        if (setupExe != null)
-                        {
-                            string args = "/s /v\"/qn /norestart\"";
-                            await RunProcessAsync(setupExe, args, "Symantec Endpoint Protection");
-                        }
-                        else
-                        {
-                            var msiExe = Directory.GetFiles(extractDir, "Sep64.msi", SearchOption.AllDirectories).FirstOrDefault();
-                            if (msiExe != null)
-                            {
-                                Log("   [WARN] Setup.exe not found, falling back to Sep64.msi...");
-                                await RunProcessAsync("msiexec.exe", $"/i \"{msiExe}\" /qn /norestart", "Symantec Endpoint Protection (MSI)");
+                                await RunCustomProcess(startInfo, "Avast Setup");
                             }
                             else
                             {
-                                Log("   [ERROR] Setup.exe or Sep64.msi not found in Symantec zip.");
+                                Log("   [ERROR] 'Silent Installing.cmd' not found.");
                             }
                         }
-                    }
+                        else if (SelectedAntivirus.Contains("Symantec", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log("   [INSTALL] Starting Symantec Endpoint Protection Silent Install...");
+                            var setupExe = Directory.GetFiles(extractDir, "Setup.exe", SearchOption.AllDirectories).FirstOrDefault();
 
-                    Log($"   [SUCCESS] {SelectedAntivirus} installation sequence finished.");
+                            if (setupExe != null)
+                            {
+                                string args = "/s /v\"/qn /norestart\"";
+                                await RunProcessAsync(setupExe, args, "Symantec Endpoint Protection");
+                            }
+                            else
+                            {
+                                var msiExe = Directory.GetFiles(extractDir, "Sep64.msi", SearchOption.AllDirectories).FirstOrDefault();
+                                if (msiExe != null)
+                                {
+                                    Log("   [WARN] Setup.exe not found, falling back to Sep64.msi...");
+                                    await RunProcessAsync("msiexec.exe", $"/i \"{msiExe}\" /qn /norestart", "Symantec Endpoint Protection (MSI)");
+                                }
+                                else
+                                {
+                                    Log("   [ERROR] Setup.exe or Sep64.msi not found in Symantec zip.");
+                                }
+                            }
+                        }
+
+                        Log($"   [SUCCESS] {SelectedAntivirus} installation sequence finished.");
+                    }
+                    else
+                    {
+                        if (fileName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                            await SmartInstall(SelectedAntivirus, relativePath, "/qn /norestart", SelectedAntivirus);
+                        else if (fileName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
+                            await RunScriptTask(relativePath, $"Running {SelectedAntivirus}...");
+                        else
+                            await SmartInstall(SelectedAntivirus, relativePath, "/silent", SelectedAntivirus);
+                    }
                 }
                 else
                 {
-                    if (fileName.EndsWith(".msi"))
-                        await SmartInstall(SelectedAntivirus, relativePath, "/qn /norestart", SelectedAntivirus);
-                    else if (fileName.EndsWith(".bat"))
-                        await RunScriptTask(relativePath, $"Running {SelectedAntivirus}...");
-                    else
-                        await SmartInstall(SelectedAntivirus, relativePath, "/silent", SelectedAntivirus);
+                    Log($"   [ERROR] Configuration not found for: {SelectedAntivirus}");
                 }
             }
-            else
+            finally
             {
-                Log($"   [ERROR] Configuration not found for: {SelectedAntivirus}");
+                IsBusy = false;
+                NotifyCommands();
             }
         }
     }
+}
 }

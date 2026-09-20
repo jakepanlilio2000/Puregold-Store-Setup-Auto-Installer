@@ -73,12 +73,19 @@
                 <!--  Bottom: Primary Action  -->
                 <StackPanel Margin="16,0,16,16" DockPanel.Dock="Bottom">
                     <CheckBox
-                        Margin="0,0,0,10"
+                        Margin="0,0,0,8"
                         Content="Create System Restore Point"
                         FontSize="12"
                         IsChecked="{Binding IsRestorePointEnabled}"
                         Style="{StaticResource ModernCheckBox}"
-                        ToolTip="Creates a restore point before installation begins." />
+                        ToolTip="Creates a Windows System Restore Point before installation begins." />
+                    <CheckBox
+                        Margin="0,0,0,10"
+                        Content="Join Domain After Install"
+                        FontSize="12"
+                        IsChecked="{Binding JoinDomainAfterInstall}"
+                        Style="{StaticResource ModernCheckBox}"
+                        ToolTip="Prompts for credentials and automatically joins Active Directory domain after installation completes." />
                     <Button
                         Height="44"
                         HorizontalAlignment="Stretch"
@@ -86,7 +93,8 @@
                         Content="START INSTALLATION"
                         FontSize="14"
                         FontWeight="SemiBold"
-                        Style="{StaticResource PrimaryButton}" />
+                        Style="{StaticResource PrimaryButton}"
+                        ToolTip="Begin automated setup and software package deployment for the selected department." />
                 </StackPanel>
 
                 <!--  Middle: Responsive Scrollable Context  -->
@@ -189,7 +197,8 @@
                             FontSize="13"
                             ItemsSource="{Binding Departments}"
                             SelectedItem="{Binding SelectedDepartment}"
-                            Style="{StaticResource ModernComboBox}" />
+                            Style="{StaticResource ModernComboBox}"
+                            ToolTip="Select the department profile to configure and load package presets." />
 
                         <!--  Search  -->
                         <Grid Grid.Row="2" Margin="0,0,0,10">
@@ -197,7 +206,8 @@
                                 Padding="10,6"
                                 FontSize="12"
                                 Style="{StaticResource ModernTextBox}"
-                                Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}">
+                                Text="{Binding ManifestSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="Filter applications in the manifest list below (Press Esc to clear).">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
                                 </TextBox.InputBindings>
@@ -395,7 +405,8 @@
                     <Border
                         Grid.Column="0"
                         Padding="12,8"
-                        Style="{StaticResource GlassCard}">
+                        Style="{StaticResource GlassCard}"
+                        ToolTip="Current overall machine and setup health status.">
                         <StackPanel>
                             <TextBlock
                                 FontSize="10"
@@ -412,7 +423,8 @@
                     <Border
                         Grid.Column="2"
                         Padding="12,8"
-                        Style="{StaticResource GlassCard}">
+                        Style="{StaticResource GlassCard}"
+                        ToolTip="Current Active Directory domain membership status.">
                         <StackPanel>
                             <TextBlock
                                 FontSize="10"
@@ -431,7 +443,8 @@
                     <Border
                         Grid.Column="4"
                         Padding="12,8"
-                        Style="{StaticResource GlassCard}">
+                        Style="{StaticResource GlassCard}"
+                        ToolTip="Currently selected department configuration profile.">
                         <StackPanel>
                             <TextBlock
                                 FontSize="10"
@@ -450,7 +463,8 @@
                     <Border
                         Grid.Column="6"
                         Padding="12,8"
-                        Style="{StaticResource GlassCard}">
+                        Style="{StaticResource GlassCard}"
+                        ToolTip="Total number of applications and components queued for installation.">
                         <StackPanel>
                             <TextBlock
                                 FontSize="10"
@@ -504,7 +518,7 @@
                                     FontSize="12"
                                     Style="{StaticResource ModernTextBox}"
                                     Text="{Binding TargetIp, UpdateSourceTrigger=PropertyChanged}"
-                                    ToolTip="e.g., 192.168.1.101" />
+                                    ToolTip="Static IP Address to assign to the active network adapter (e.g., 192.168.1.101)" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock
@@ -517,7 +531,7 @@
                                     FontSize="12"
                                     Style="{StaticResource ModernTextBox}"
                                     Text="{Binding TargetGateway, UpdateSourceTrigger=PropertyChanged}"
-                                    ToolTip="e.g., 192.168.1.1" />
+                                    ToolTip="Default Gateway router IP address (e.g., 192.168.1.1)" />
                             </StackPanel>
                             <StackPanel Grid.Column="4">
                                 <TextBlock
@@ -530,7 +544,7 @@
                                     FontSize="12"
                                     Style="{StaticResource ModernTextBox}"
                                     Text="{Binding TargetDns, UpdateSourceTrigger=PropertyChanged}"
-                                    ToolTip="e.g., 192.168.1.100" />
+                                    ToolTip="Primary DNS server IP address (e.g., 192.168.1.100)" />
                             </StackPanel>
 
                             <Button
@@ -542,7 +556,8 @@
                                 Command="{Binding ChangeIpCommand}"
                                 Content="APPLY NETWORK"
                                 FontSize="12"
-                                Style="{StaticResource SecondaryButton}" />
+                                Style="{StaticResource SecondaryButton}"
+                                ToolTip="Configure static IP, subnet mask, gateway, and DNS on the active network adapter." />
                         </Grid>
 
                         <Separator Margin="0,12" Background="{StaticResource BorderBrush}" />
@@ -554,7 +569,8 @@
                                 Margin="0,0,10,0"
                                 Padding="10,6"
                                 Command="{Binding RenameComputerCommand}"
-                                Style="{StaticResource SecondaryButton}">
+                                Style="{StaticResource SecondaryButton}"
+                                ToolTip="Prompt to rename this computer and restart if necessary.">
                                 <StackPanel
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -578,7 +594,8 @@
                                 Height="38"
                                 Padding="10,6"
                                 Command="{Binding JoinDomainCommand}"
-                                Style="{StaticResource SecondaryButton}">
+                                Style="{StaticResource SecondaryButton}"
+                                ToolTip="Prompt for Active Directory domain credentials and join this machine to the domain.">
                                 <StackPanel
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -726,7 +743,8 @@
                                     Padding="10,6"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding RunSystemRestoreCommand}"
-                                    Style="{StaticResource SecondaryButton}">
+                                    Style="{StaticResource SecondaryButton}"
+                                    ToolTip="Launch Windows System Restore wizard to restore to a previous restore point.">
                                     <StackPanel
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Center"
@@ -754,7 +772,8 @@
                                     Padding="10,6"
                                     HorizontalAlignment="Stretch"
                                     Command="{Binding RunImageRecoveryCommand}"
-                                    Style="{StaticResource DangerButton}">
+                                    Style="{StaticResource DangerButton}"
+                                    ToolTip="Reboot directly into Windows Recovery Environment (WinRE) for system image recovery.">
                                     <StackPanel
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Center"
@@ -808,7 +827,8 @@
                                         FontSize="12"
                                         ItemsSource="{Binding AntivirusList}"
                                         SelectedItem="{Binding SelectedAntivirus}"
-                                        Style="{StaticResource ModernComboBox}" />
+                                        Style="{StaticResource ModernComboBox}"
+                                        ToolTip="Select an antivirus protection package to deploy." />
                                     <Button
                                         Grid.Column="2"
                                         Height="32"
@@ -816,7 +836,8 @@
                                         Command="{Binding InstallAntivirusCommand}"
                                         Content="INSTALL AV"
                                         FontSize="11"
-                                        Style="{StaticResource PrimaryButton}" />
+                                        Style="{StaticResource PrimaryButton}"
+                                        ToolTip="Download or extract and run silent installation for the selected antivirus." />
                                 </Grid>
 
                                 <Separator Margin="0,8" Background="{StaticResource BorderBrush}" />
@@ -838,7 +859,8 @@
                                         FontSize="12"
                                         ItemsSource="{Binding MedicineList}"
                                         SelectedItem="{Binding SelectedMedicineName}"
-                                        Style="{StaticResource ModernComboBox}" />
+                                        Style="{StaticResource ModernComboBox}"
+                                        ToolTip="Select an administrative tool, patcher, or keygen from the medicine cabinet." />
                                     <Button
                                         Grid.Column="2"
                                         Height="32"
@@ -846,7 +868,8 @@
                                         Command="{Binding RunMedicineCommand}"
                                         Content="LAUNCH TOOL"
                                         FontSize="11"
-                                        Style="{StaticResource SecondaryButton}" />
+                                        Style="{StaticResource SecondaryButton}"
+                                        ToolTip="Extract on demand and run the selected administrative tool with elevated privileges." />
                                 </Grid>
                             </StackPanel>
                         </Border>
