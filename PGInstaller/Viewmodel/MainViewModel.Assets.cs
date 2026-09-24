@@ -17,9 +17,14 @@ namespace PGInstaller.Viewmodel
         private async Task<bool> PrepareAssets()
         {
             string targetAssetsDir = @"C:\Assets";
-            if (Directory.Exists(targetAssetsDir) && File.Exists(Path.Combine(targetAssetsDir, "chrome.exe")))
+            string sub = Path.Combine(targetAssetsDir, "assets");
+
+            bool hasFiles = (Directory.Exists(targetAssetsDir) && (File.Exists(Path.Combine(targetAssetsDir, "chrome.exe")) || Directory.GetFiles(targetAssetsDir).Length > 3)) ||
+                            (Directory.Exists(sub) && (File.Exists(Path.Combine(sub, "chrome.exe")) || Directory.GetFiles(sub).Length > 3));
+
+            if (hasFiles)
             {
-                _assetsPath = targetAssetsDir;
+                _assetsPath = (Directory.Exists(sub) && File.Exists(Path.Combine(sub, "chrome.exe"))) ? sub : targetAssetsDir;
                 return true;
             }
 
@@ -28,24 +33,28 @@ namespace PGInstaller.Viewmodel
 
             if (File.Exists(zipFile))
             {
-                if (!Directory.Exists(targetAssetsDir))
+                if (!File.Exists(tool7z))
                 {
-                    if (!File.Exists(tool7z))
-                    {
-                        Log("   [ERROR] 7z.exe missing.");
-                        return false;
-                    }
-
-                    Log("   [INIT] Extracting Assets to C:\\Assets...");
-                    Directory.CreateDirectory(targetAssetsDir);
-
-                    string pw = Encoding.UTF8.GetString(Convert.FromBase64String("cHdAMTIzNA=="));
-                    await RunProcessAsync(tool7z, $"x \"{zipFile}\" -o\"{targetAssetsDir}\" -p{pw} -y", "Extracting Assets", true);
+                    Log("   [ERROR] 7z.exe missing for assets extraction.");
+                    return false;
                 }
 
-                string sub = Path.Combine(targetAssetsDir, "assets");
-                _assetsPath = Directory.Exists(sub) ? sub : targetAssetsDir;
+                Log("   [INIT] Extracting Assets to C:\\Assets...");
+                if (!Directory.Exists(targetAssetsDir))
+                {
+                    Directory.CreateDirectory(targetAssetsDir);
+                }
 
+                string pw = Encoding.UTF8.GetString(Convert.FromBase64String("cHdAMTIzNA=="));
+                await RunProcessAsync(tool7z, $"x \"{zipFile}\" -o\"{targetAssetsDir}\" -p{pw} -y", "Extracting Assets", true);
+
+                _assetsPath = Directory.Exists(sub) ? sub : targetAssetsDir;
+                return true;
+            }
+
+            if (Directory.Exists(targetAssetsDir))
+            {
+                _assetsPath = Directory.Exists(sub) ? sub : targetAssetsDir;
                 return true;
             }
 
@@ -132,5 +141,4 @@ namespace PGInstaller.Viewmodel
             }
         }
     }
-}
 }

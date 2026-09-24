@@ -13,7 +13,7 @@ namespace PGInstaller.Viewmodel
                 parallelTasks.Add(() => SmartInstall("Advanced IP Scanner", "ipscanner.exe", checkName: "Advanced IP Scanner"));
 
             if (selectedApps.Contains("PITK"))
-                parallelTasks.Add(() => SmartInstall("PITK", "PITK Setup.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "PITK"));
+                parallelTasks.Add(() => InstallPITK());
             if (parallelTasks.Any())
             {
                 Log("   [PARALLEL] Executing independent IT tasks concurrently...");
@@ -30,3 +30,4 @@ namespace PGInstaller.Viewmodel
         }
     }
 }
+

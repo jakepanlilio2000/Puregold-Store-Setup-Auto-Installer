@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -34,15 +34,13 @@ namespace PGInstaller.Viewmodel
                 string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
                     ShowInputDialog("Enter new computer name:", currentName));
 
-                if (!string.IsNullOrWhiteSpace(newName) && newName != currentName)
+                if (!string.IsNullOrWhiteSpace(newName) && !newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
                 {
-                    Log($"   [INIT] Renaming computer to '{newName}'...");
-                    try
+                    bool renamed = await ExecuteRenameComputerInternal(newName);
+                    if (renamed)
                     {
-                        await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer", true);
-
                         var restart = MessageBox.Show(
-                            "A restart is required to apply the new computer name.\n\nRestart now?",
+                            $"Computer has been renamed to '{newName}'.\n\nA restart is required to apply the new computer name.\n\nRestart now?",
                             "Restart Required",
                             MessageBoxButton.YesNo,
                             MessageBoxImage.Information);
@@ -59,13 +57,83 @@ namespace PGInstaller.Viewmodel
                             return false; 
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Log($"   [ERROR] Failed to rename computer: {ex.Message}");
-                    }
                 }
             }
             return true;
+        }
+
+        private async Task<bool> ExecuteRenameComputerInternal(string newName)
+        {
+            string currentName = Environment.MachineName;
+            if (string.IsNullOrWhiteSpace(newName) || newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            newName = newName.Trim();
+            Log($"   [INIT] Renaming computer from '{currentName}' to '{newName}'...");
+
+            bool success = false;
+            try
+            {
+                // 1. Primary: Modern PowerShell Rename-Computer (Reliable on Win10/11)
+                string psCmd = $"Rename-Computer -NewName '{newName}' -Force -ErrorAction Stop";
+                success = await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psCmd}\"", "Renaming Computer (PowerShell)", true);
+
+                // 2. Fallback: Native WMI Win32_ComputerSystem API
+                if (!success)
+                {
+                    Log("   [FALLBACK] Attempting WMI ComputerSystem Rename...");
+                    await Task.Run(() =>
+                    {
+                        try
+                        {
+                            using var searcher = new ManagementObjectSearcher("Select * from Win32_ComputerSystem");
+                            foreach (ManagementObject mo in searcher.Get())
+                            {
+                                var inParams = mo.GetMethodParameters("Rename");
+                                inParams["Name"] = newName;
+                                var outParams = mo.InvokeMethod("Rename", inParams, null);
+                                uint retVal = Convert.ToUInt32(outParams?["ReturnValue"] ?? 1);
+                                if (retVal == 0)
+                                {
+                                    success = true;
+                                    break;
+                                }
+                                else
+                                {
+                                    Log($"   [WARN] WMI Rename returned code: {retVal}");
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"   [WARN] WMI Rename failed: {ex.Message}");
+                        }
+                    });
+                }
+
+                // 3. Fallback: wmic (for older Windows installations)
+                if (!success)
+                {
+                    success = await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer (WMIC)", true);
+                }
+
+                if (success)
+                {
+                    PcName = newName;
+                    Log($"   [SUCCESS] Computer renamed to '{newName}'. (Restart required to apply changes)");
+                }
+                else
+                {
+                    Log($"   [ERROR] Failed to rename computer to '{newName}'.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Exception while renaming computer: {ex.Message}");
+                success = false;
+            }
+
+            return success;
         }
     }
 }

@@ -278,14 +278,42 @@ namespace PGInstaller.Viewmodel
         }
         private async Task InstallAVGW()
         {
+            Log("------------------------------------------------");
+            Log("   [INIT] Installing Annual & Variance Gateway (A&VGW)...");
+
+            string targetExe = @"C:\Program Files (x86)\Annual & Variance Gateway\Annual And Variance Gateway.exe";
+            if (!File.Exists(targetExe))
+            {
+                string altExe = @"C:\Program Files\Annual & Variance Gateway\Annual And Variance Gateway.exe";
+                if (File.Exists(altExe))
+                {
+                    targetExe = altExe;
+                }
+            }
+
+            bool isForceInstall = IsForceInstall("A&VGW", "Annual & Variance Gateway");
+            bool isInstalled = IsAppInstalled("A&VGW") || IsAppInstalled("Annual & Variance Gateway") || File.Exists(targetExe);
+
+            if (!isForceInstall && isInstalled)
+            {
+                Log("   [SKIP] Annual & Variance Gateway (A&VGW) is already installed.");
+                RecordInstallResult("A&VGW", false, true);
+                await CreateAndVerifyDesktopShortcut("Annual & Variance Gateway", targetExe);
+                IncrementProgress();
+                return;
+            }
+
             string exeName = "A&VGWSetup.exe";
             string? installerPath = ResolveAssetPath(exeName);
 
             if (string.IsNullOrEmpty(installerPath) || !File.Exists(installerPath))
             {
                 Log($"   [ERROR] {exeName} not found in Assets.");
+                RecordInstallResult("A&VGW", false);
+                IncrementProgress();
                 return;
             }
+
             if (string.IsNullOrEmpty(_sharedDatabaseIp))
             {
                 _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -302,7 +330,8 @@ namespace PGInstaller.Viewmodel
             );
 
             Log("   [INSTALL] Installing Annual & Variance Gateway silently...");
-            await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing A&VGW");
+            bool success = await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing A&VGW");
+            RecordInstallResult("A&VGW", success);
 
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
@@ -341,6 +370,79 @@ namespace PGInstaller.Viewmodel
                 Log($"   [WARN] config.json not found or IP was cancelled. It may be installed in a non-standard directory.");
             }
 
+            if (File.Exists(@"C:\Program Files (x86)\Annual & Variance Gateway\Annual And Variance Gateway.exe"))
+            {
+                targetExe = @"C:\Program Files (x86)\Annual & Variance Gateway\Annual And Variance Gateway.exe";
+            }
+            else if (File.Exists(@"C:\Program Files\Annual & Variance Gateway\Annual And Variance Gateway.exe"))
+            {
+                targetExe = @"C:\Program Files\Annual & Variance Gateway\Annual And Variance Gateway.exe";
+            }
+
+            await CreateAndVerifyDesktopShortcut("Annual & Variance Gateway", targetExe);
+            IncrementProgress();
+        }
+
+        private async Task InstallPITK()
+        {
+            Log("------------------------------------------------");
+            Log("   [INIT] Installing Puregold IT Toolkit (PITK)...");
+
+            string targetExe = @"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe";
+            if (!File.Exists(targetExe))
+            {
+                string altExe = @"C:\Program Files\Puregold IT Toolkit\PuregoldITToolkit.exe";
+                if (File.Exists(altExe))
+                {
+                    targetExe = altExe;
+                }
+            }
+
+            bool isForceInstall = IsForceInstall("PITK", "Puregold IT Toolkit");
+            bool isInstalled = IsAppInstalled("PITK") || IsAppInstalled("Puregold IT Toolkit") || File.Exists(targetExe);
+
+            if (!isForceInstall && isInstalled)
+            {
+                Log("   [SKIP] Puregold IT Toolkit (PITK) is already installed.");
+                RecordInstallResult("PITK", false, true);
+                await CreateAndVerifyDesktopShortcut("Puregold IT Toolkit", targetExe);
+                IncrementProgress();
+                return;
+            }
+
+            string installerExe = "PITK Setup.exe";
+            string? resolved = ResolveAssetPath(installerExe);
+            if (string.IsNullOrEmpty(resolved) || !File.Exists(resolved))
+            {
+                if (ResolveAssetPath("pitk.exe") != null)
+                {
+                    installerExe = "pitk.exe";
+                }
+            }
+
+            string? installerPath = ResolveAssetPath(installerExe);
+            bool success = false;
+            if (!string.IsNullOrEmpty(installerPath) && File.Exists(installerPath))
+            {
+                success = await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing PITK");
+            }
+            else
+            {
+                Log($"   [SKIP] Installer not found: {installerExe}");
+            }
+
+            RecordInstallResult("PITK", success);
+
+            if (File.Exists(@"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe"))
+            {
+                targetExe = @"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe";
+            }
+            else if (File.Exists(@"C:\Program Files\Puregold IT Toolkit\PuregoldITToolkit.exe"))
+            {
+                targetExe = @"C:\Program Files\Puregold IT Toolkit\PuregoldITToolkit.exe";
+            }
+
+            await CreateAndVerifyDesktopShortcut("Puregold IT Toolkit", targetExe);
             IncrementProgress();
         }
 
@@ -467,6 +569,20 @@ Require all granted
             IncrementProgress();
         }
 
+        private bool IsNetFx3Installed()
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5");
+                if (key != null && Convert.ToInt32(key.GetValue("Install") ?? 0) == 1)
+                {
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
         private string GetNetFxSourceFolder()
         {
             try
@@ -476,7 +592,7 @@ Require all granted
 
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
                 string productName = key?.GetValue("ProductName")?.ToString() ?? "";
-                bool isServer = productName.Contains("Server");
+                bool isServer = productName.Contains("Server", StringComparison.OrdinalIgnoreCase);
 
                 if (isServer)
                 {
@@ -492,33 +608,44 @@ Require all granted
                         key?.GetValue("ReleaseId")?.ToString() ??
                         "";
 
-                    if (string.IsNullOrEmpty(releaseId)) return null!;
-
                     string osLabel = (build >= 22000) ? "Win11" : "Win10";
-                    return $"{osLabel} {releaseId.ToLower()}";
+                    if (!string.IsNullOrEmpty(releaseId))
+                    {
+                        return $"{osLabel} {releaseId.ToLower()}";
+                    }
+                    return osLabel;
                 }
-                return null!;
+                return (build >= 22000) ? "Win11" : "Win10";
             }
             catch (Exception ex)
             {
                 Log($"   [WARN] OS Detection error: {ex.Message}");
-                return null!;
+                return Environment.OSVersion.Version.Build >= 22000 ? "Win11" : "Win10";
             }
         }
 
         private async Task InstallNetFx3()
         {
+            Log("   [INIT] Checking .NET Framework 3.5 status...");
+
+            if (IsNetFx3Installed())
+            {
+                Log("   [INFO] .NET Framework 3.5 is already installed on this machine.");
+                IncrementProgress();
+                return;
+            }
+
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
             string? netfxZip = ResolveAssetPath("netfx.zip");
             string netfxExtractDir = @"C:\Assets\NetFX3_Source";
 
             if (string.IsNullOrEmpty(netfxZip) || !File.Exists(netfxZip))
             {
-                Log("   [ERROR] netfx.zip not found in Assets.");
-                return;
+                await ExtractSpecificFile(null, "*netfx*");
+                netfxZip = ResolveAssetPath("netfx.zip");
             }
 
-            if (!Directory.Exists(netfxExtractDir))
+            if (!string.IsNullOrEmpty(netfxZip) && File.Exists(netfxZip) && !Directory.Exists(netfxExtractDir))
             {
                 Log("   [EXTRACT] Unzipping NetFX3 sources...");
                 try
@@ -528,48 +655,103 @@ Require all granted
                 }
                 catch (Exception ex)
                 {
-                    Log($"   [ERROR] Extraction failed: {ex.Message}");
-                    return;
+                    Log($"   [WARN] Extraction failed: {ex.Message}");
                 }
             }
 
-            string matchedFolder = GetNetFxSourceFolder();
-
-            if (string.IsNullOrEmpty(matchedFolder))
+            string? sourcePath = null;
+            if (Directory.Exists(netfxExtractDir))
             {
-                Log("   [ERROR] Could not detect a compatible source folder for this OS.");
-                return;
+                string matchedFolder = GetNetFxSourceFolder();
+                if (!string.IsNullOrEmpty(matchedFolder) && Directory.Exists(Path.Combine(netfxExtractDir, matchedFolder)))
+                {
+                    sourcePath = Path.Combine(netfxExtractDir, matchedFolder);
+                }
+                else if (!string.IsNullOrEmpty(matchedFolder))
+                {
+                    string osPrefix = matchedFolder.Split(' ')[0];
+                    sourcePath = Directory.GetDirectories(netfxExtractDir, osPrefix + "*", SearchOption.AllDirectories).FirstOrDefault();
+                }
+
+                if (string.IsNullOrEmpty(sourcePath))
+                {
+                    var cab = Directory.GetFiles(netfxExtractDir, "*.cab", SearchOption.AllDirectories).FirstOrDefault();
+                    if (cab != null)
+                    {
+                        sourcePath = Path.GetDirectoryName(cab);
+                    }
+                    else
+                    {
+                        sourcePath = Directory.GetDirectories(netfxExtractDir, "*sxs*", SearchOption.AllDirectories).FirstOrDefault()
+                                     ?? Directory.GetDirectories(netfxExtractDir).FirstOrDefault();
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(sourcePath) && Directory.Exists(Path.Combine(sourcePath, "sxs")))
+                {
+                    sourcePath = Path.Combine(sourcePath, "sxs");
+                }
             }
 
-            string sourcePath = Path.Combine(netfxExtractDir, matchedFolder);
-            if (!Directory.Exists(sourcePath))
+            bool success = false;
+
+            // 1. Try offline DISM with source
+            if (!string.IsNullOrEmpty(sourcePath) && Directory.Exists(sourcePath))
             {
-                string osPrefix = matchedFolder.Split(' ')[0];
-                var fallbackDir = Directory.GetDirectories(netfxExtractDir, osPrefix + "*").FirstOrDefault();
+                Log($"   [INSTALL] Installing from offline source: {Path.GetFileName(sourcePath)}");
+                success = await RunProcessAsync(
+                    "dism",
+                    $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
+                    "Enabling .NET 3.5 (Offline)"
+                );
 
-                if (fallbackDir != null)
+                if (!success)
                 {
-                    Log($"   [WARN] Exact version '{matchedFolder}' not found. Using fallback: {Path.GetFileName(fallbackDir)}");
-                    sourcePath = fallbackDir;
-                }
-                else
-                {
-                    Log($"   [ERROR] Source directory not found: {matchedFolder}");
-                    return;
+                    Log("   [RETRY] Retrying offline source without LimitAccess...");
+                    success = await RunProcessAsync(
+                        "dism",
+                        $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /NoRestart",
+                        "Enabling .NET 3.5 (Offline Fallback)"
+                    );
                 }
             }
 
-            Log($"   [INSTALL] Installing from source: {Path.GetFileName(sourcePath)}");
-            bool success = await RunProcessAsync(
-                 "dism",
-                $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
-                 "Enabling .NET 3.5 (Offline)"
-            );
+            // 2. Direct CAB package fallback if present
+            if (!success)
+            {
+                string? standaloneCab = ResolveAssetPath("netfx3.cab")
+                    ?? (Directory.Exists(netfxExtractDir) ? Directory.GetFiles(netfxExtractDir, "*netfx3*.cab", SearchOption.AllDirectories).FirstOrDefault() : null);
 
-            if (success)
-                Log("   [SUCCESS] .NET Framework 3.5 installed.");
+                if (!string.IsNullOrEmpty(standaloneCab) && File.Exists(standaloneCab))
+                {
+                    Log($"   [FALLBACK] Installing direct CAB package: {Path.GetFileName(standaloneCab)}...");
+                    success = await RunProcessAsync("dism", $"/Online /Add-Package /PackagePath:\"{standaloneCab}\" /NoRestart", "Installing .NET 3.5 (CAB)");
+                }
+            }
+
+            // 3. Online DISM enable fallback
+            if (!success && !IsNetFx3Installed())
+            {
+                Log("   [FALLBACK] Attempting Windows DISM online feature enable...");
+                success = await RunProcessAsync("dism", "/Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart", "Enabling .NET 3.5 (Online)");
+            }
+
+            // 4. PowerShell fallback
+            if (!success && !IsNetFx3Installed())
+            {
+                Log("   [FALLBACK] Attempting PowerShell Enable-WindowsOptionalFeature...");
+                success = await RunProcessAsync("powershell", "-NoProfile -Command \"Enable-WindowsOptionalFeature -Online -FeatureName NetFx3 -All -NoRestart\"", "Enabling .NET 3.5 (PowerShell)");
+            }
+
+            if (success || IsNetFx3Installed())
+            {
+                Log("   [SUCCESS] .NET Framework 3.5 installed and active.");
+            }
             else
-                Log("   [ERROR] Installation failed. Check logs.");
+            {
+                Log("   [ERROR] .NET Framework 3.5 installation could not be completed.");
+            }
+
             IncrementProgress();
         }
 
@@ -1048,30 +1230,76 @@ Require all granted
             IncrementProgress();
         }
 
+        private async Task<bool> CreateAndVerifyDesktopShortcut(string linkName, string targetExePath, string? workingDir = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(workingDir) && !string.IsNullOrWhiteSpace(targetExePath))
+                {
+                    workingDir = Path.GetDirectoryName(targetExePath);
+                }
+
+                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string publicLnk = Path.Combine(publicDesktop, $"{linkName}.lnk");
+                string userLnk = Path.Combine(userDesktop, $"{linkName}.lnk");
+
+                string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
+                if (!Directory.Exists(publicStartMenu))
+                {
+                    Directory.CreateDirectory(publicStartMenu);
+                }
+                string startMenuLnk = Path.Combine(publicStartMenu, $"{linkName}.lnk");
+
+                Log($"   [SHORTCUT] Creating desktop shortcut for '{linkName}'...");
+
+                string cleanTarget = (targetExePath ?? "").Replace("'", "''");
+                string cleanWorkDir = (workingDir ?? "").Replace("'", "''");
+                string workDirSnippet = string.IsNullOrEmpty(cleanWorkDir) ? "" : $"$s.WorkingDirectory = '{cleanWorkDir}';";
+                string workDirSnippet2 = string.IsNullOrEmpty(cleanWorkDir) ? "" : $"$s2.WorkingDirectory = '{cleanWorkDir}';";
+
+                string script = $"$ws = New-Object -ComObject WScript.Shell; " +
+                                $"$s = $ws.CreateShortcut('{publicLnk.Replace("'", "''")}'); " +
+                                $"$s.TargetPath = '{cleanTarget}'; {workDirSnippet} $s.Save(); " +
+                                $"$s2 = $ws.CreateShortcut('{startMenuLnk.Replace("'", "''")}'); " +
+                                $"$s2.TargetPath = '{cleanTarget}'; {workDirSnippet2} $s2.Save();";
+
+                await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", $"Creating Shortcut: {linkName}", true);
+
+                await Task.Delay(500);
+
+                bool exeExists = !string.IsNullOrEmpty(targetExePath) && File.Exists(targetExePath);
+                if (exeExists)
+                {
+                    Log($"   [VERIFY] Target executable verified: {targetExePath}");
+                }
+                else
+                {
+                    Log($"   [WARN] Target executable not found at: {targetExePath}");
+                }
+
+                bool shortcutExists = File.Exists(publicLnk) || File.Exists(userLnk) || File.Exists(startMenuLnk);
+                if (shortcutExists)
+                {
+                    Log($"   [SUCCESS] Verified: Desktop shortcut for '{linkName}' created successfully at '{publicLnk}'.");
+                    return true;
+                }
+                else
+                {
+                    Log($"   [ERROR] Verification failed: Desktop shortcut for '{linkName}' was not found.");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Failed to create or verify shortcut for '{linkName}': {ex.Message}");
+                return false;
+            }
+        }
+
         private async Task CreateAllUsersShortcut(string linkName, string targetPath, string? workingDir = null)
         {
-            string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-            string shortcutPath = Path.Combine(publicDesktop, $"{linkName}.lnk");
-
-            string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
-            if (!Directory.Exists(publicStartMenu))
-            {
-                Directory.CreateDirectory(publicStartMenu);
-            }
-            string startMenuShortcut = Path.Combine(publicStartMenu, $"{linkName}.lnk");
-
-            if (!File.Exists(shortcutPath) || !File.Exists(startMenuShortcut))
-            {
-                Log($"   [SHORTCUT] Deploying '{linkName}' for All Users...");
-                string workDirArg = string.IsNullOrEmpty(workingDir) ? "" : $"; $s.WorkingDirectory = '{workingDir}'";
-                string script = $"$ws = New-Object -ComObject WScript.Shell; " +
-                                $"$s = $ws.CreateShortcut('{shortcutPath}'); " +
-                                $"$s.TargetPath = '{targetPath}'; {workDirArg}; $s.Save(); " +
-                                $"$s2 = $ws.CreateShortcut('{startMenuShortcut}'); " +
-                                $"$s2.TargetPath = '{targetPath}'; {workDirArg}; $s2.Save();";
-
-                await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", $"Creating All-Users Shortcut: {linkName}", true);
-            }
+            await CreateAndVerifyDesktopShortcut(linkName, targetPath, workingDir);
         }
 
         private async Task InstallPutty()
@@ -1333,185 +1561,159 @@ Require all granted
             return """
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Department = "IT",
+    [string]$OwnIP = "192.168.1.101",
 
     [Parameter(Mandatory=$false)]
-    [string]$OwnIP = "192.168.1.101"
+    [string]$Department = "IT"
 )
 
-$cleanIp = $OwnIP.Trim()
-if (-not ($cleanIp.StartsWith("http://", [System.StringComparison]::OrdinalIgnoreCase) -or $cleanIp.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase))) {
-    $cleanIp = "http://$cleanIp"
+$ChromeProcessName = "chrome"
+
+Write-Host "Closing Chrome..." -ForegroundColor Yellow
+Stop-Process -Name $ChromeProcessName -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# Clean OwnIP for Purepos Conso URL
+$cleanIp = $OwnIP.Trim().TrimEnd('/')
+if ($cleanIp.StartsWith("http://", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $cleanIp = $cleanIp.Substring(7)
+} elseif ($cleanIp.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $cleanIp = $cleanIp.Substring(8)
 }
-if (-not $cleanIp.EndsWith("/")) {
-    $cleanIp = "$cleanIp/"
+if ($cleanIp.EndsWith("/purepos_conso/login", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $consoUrl = "http://$cleanIp"
+} else {
+    $consoUrl = "http://$cleanIp/purepos_conso/login"
 }
 
-$bookmarks = @(
-    @{ Name = "PCFPRO"; Url = "http://192.168.200.47/pcfpro/index.php" },
-    @{ Name = "My Portal"; Url = "http://myportal.puregold.local/index.php/login" },
-    @{ Name = "Local Conso"; Url = $cleanIp }
+# Construct Final Bookmark Structure (v3.0 - Shelftag, TPLinux-Kiosk, IT_Tools, Conso List folders removed)
+$NewChildren = @(
+    @{
+        date_added = "13300000000000000"
+        id         = "1500"
+        name       = "Purepos Conso"
+        type       = "url"
+        url        = $consoUrl
+    },
+    @{
+        date_added = "13300000000000000"
+        id         = "1601"
+        name       = "My Portal"
+        type       = "url"
+        url        = "http://myportal.puregold.local/index.php/login"
+    },
+    @{
+        date_added = "13300000000000000"
+        id         = "1602"
+        name       = "PCFPROv2"
+        type       = "url"
+        url        = "http://pcfpro_v2_test.puregold.local/"
+    }
 )
-
-if ($Department -eq "IT") {
-    $bookmarks += @{ Name = "IT Tools"; Url = "http://192.168.200.107/IT_TOOLS/login.php" }
-    $bookmarks += @{ Name = "PurePOS HQ"; Url = "http://192.168.200.107/purepos_hq/" }
-}
 
 $localAppData = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
 $chromeBase = Join-Path $localAppData "Google\Chrome\User Data"
 
 $chromeProfiles = @()
-if (Test-Path $chromeBase) {
-    $defaultDir = Join-Path $chromeBase "Default"
-    if (-not (Test-Path $defaultDir)) {
-        New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null
-    }
-    $chromeProfiles += $defaultDir
+$defaultDir = Join-Path $chromeBase "Default"
+if (-not (Test-Path $defaultDir)) {
+    New-Item -ItemType Directory -Force -Path $defaultDir | Out-Null
+}
+$chromeProfiles += $defaultDir
 
+if (Test-Path $chromeBase) {
     $otherProfiles = Get-ChildItem -Path $chromeBase -Directory -Filter "Profile *" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
     if ($otherProfiles) {
         $chromeProfiles += $otherProfiles
     }
-} else {
-    $defaultDir = Join-Path $chromeBase "Default"
-    New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null
-    $chromeProfiles += $defaultDir
 }
 
-Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 500
+foreach ($profileDir in ($chromeProfiles | Select-Object -Unique)) {
+    $BookmarkFile = Join-Path $profileDir "Bookmarks"
+    $PreferencesFile = Join-Path $profileDir "Preferences"
 
-foreach ($profileDir in $chromeProfiles) {
-    $bookmarksFile = Join-Path $profileDir "Bookmarks"
-    $jsonObj = $null
-
-    if (Test-Path $bookmarksFile) {
-        try {
-            $rawJson = Get-Content -Path $bookmarksFile -Raw -Encoding UTF8
-            $jsonObj = $rawJson | ConvertFrom-Json
-        } catch {
-            $jsonObj = $null
-        }
-    }
-
-    if (-not $jsonObj) {
-        $jsonObj = [PSCustomObject]@{
+    if (-not (Test-Path $BookmarkFile)) {
+        Write-Host "Creating new Bookmark database in $profileDir..." -ForegroundColor Cyan
+        $Json = [PSCustomObject]@{
             checksum = ""
             roots = [PSCustomObject]@{
-                bookmark_bar = [PSCustomObject]@{
-                    children = @()
-                    date_added = "13300000000000000"
-                    date_last_used = "0"
-                    date_modified = "13300000000000000"
-                    id = "1"
-                    name = "Bookmarks bar"
-                    type = "folder"
-                }
-                other = [PSCustomObject]@{
-                    children = @()
-                    date_added = "13300000000000000"
-                    date_last_used = "0"
-                    date_modified = "0"
-                    id = "2"
-                    name = "Other bookmarks"
-                    type = "folder"
-                }
-                synced = [PSCustomObject]@{
-                    children = @()
-                    date_added = "13300000000000000"
-                    date_last_used = "0"
-                    date_modified = "0"
-                    id = "3"
-                    name = "Mobile bookmarks"
-                    type = "folder"
-                }
+                bookmark_bar = [PSCustomObject]@{ children = @(); id = "1"; name = "Bookmarks Bar"; type = "folder" }
+                other        = [PSCustomObject]@{ children = @(); id = "2"; name = "Other Bookmarks"; type = "folder" }
+                synced       = [PSCustomObject]@{ children = @(); id = "3"; name = "Mobile Bookmarks"; type = "folder" }
             }
             version = 1
         }
-    }
-
-    if (-not $jsonObj.roots) {
-        $jsonObj | Add-Member -MemberType NoteProperty -Name "roots" -Value ([PSCustomObject]@{})
-    }
-    if (-not $jsonObj.roots.bookmark_bar) {
-        $jsonObj.roots | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{
-            children = @()
-            date_added = "13300000000000000"
-            date_last_used = "0"
-            date_modified = "13300000000000000"
-            id = "1"
-            name = "Bookmarks bar"
-            type = "folder"
-        })
-    }
-
-    $existingChildren = [System.Collections.ArrayList]@($jsonObj.roots.bookmark_bar.children)
-    $highestId = 10
-    function Find-MaxId($nodes) {
-        foreach ($node in $nodes) {
-            if ($node.id -match '^\d+$') {
-                $val = [int]$node.id
-                if ($val -gt $script:highestId) { $script:highestId = $val }
-            }
-            if ($node.children) {
-                Find-MaxId($node.children)
-            }
-        }
-    }
-    Find-MaxId($jsonObj.roots.bookmark_bar.children)
-    if ($jsonObj.roots.other -and $jsonObj.roots.other.children) { Find-MaxId($jsonObj.roots.other.children) }
-    if ($jsonObj.roots.synced -and $jsonObj.roots.synced.children) { Find-MaxId($jsonObj.roots.synced.children) }
-
-    foreach ($bm in $bookmarks) {
-        $targetName = $bm.Name
-        $targetUrl = $bm.Url
-
-        $existing = $null
-        foreach ($child in $existingChildren) {
-            if ($child.type -eq "url" -and ($child.name -eq $targetName -or $child.url -eq $targetUrl)) {
-                $existing = $child
-                break
-            }
-        }
-
-        if ($existing) {
-            $existing.name = $targetName
-            $existing.url = $targetUrl
-        } else {
-            $highestId++
-            $newEntry = [PSCustomObject]@{
-                date_added = "13300000000000000"
-                date_last_used = "0"
-                id = $highestId.ToString()
-                name = $targetName
-                type = "url"
-                url = $targetUrl
-            }
-            [void]$existingChildren.Add($newEntry)
-        }
-    }
-
-    $jsonObj.roots.bookmark_bar.children = $existingChildren
-    $jsonObj.checksum = ""
-
-    $outputJson = $jsonObj | ConvertTo-Json -Depth 32
-    [System.IO.File]::WriteAllText($bookmarksFile, $outputJson, [System.Text.Encoding]::UTF8)
-
-    $prefFile = Join-Path $profileDir "Preferences"
-    if (Test-Path $prefFile) {
+    } else {
+        Write-Host "Updating existing Bookmarks in $profileDir..." -ForegroundColor Cyan
         try {
-            $prefJson = Get-Content -Path $prefFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if (-not $prefJson.bookmark_bar) {
-                $prefJson | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{ show_on_all_tabs = $true })
-            } else {
-                $prefJson.bookmark_bar.show_on_all_tabs = $true
+            $Json = Get-Content $BookmarkFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        } catch {
+            $Json = $null
+        }
+        if (-not $Json) {
+            $Json = [PSCustomObject]@{
+                checksum = ""
+                roots = [PSCustomObject]@{
+                    bookmark_bar = [PSCustomObject]@{ children = @(); id = "1"; name = "Bookmarks Bar"; type = "folder" }
+                    other        = [PSCustomObject]@{ children = @(); id = "2"; name = "Other Bookmarks"; type = "folder" }
+                    synced       = [PSCustomObject]@{ children = @(); id = "3"; name = "Mobile Bookmarks"; type = "folder" }
+                }
+                version = 1
             }
-            $updatedPref = $prefJson | ConvertTo-Json -Depth 32
-            [System.IO.File]::WriteAllText($prefFile, $updatedPref, [System.Text.Encoding]::UTF8)
-        } catch { }
+        }
     }
+
+    if (-not $Json.roots) {
+        $Json | Add-Member -MemberType NoteProperty -Name "roots" -Value ([PSCustomObject]@{})
+    }
+    if (-not $Json.roots.bookmark_bar) {
+        $Json.roots | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{ children = @(); id = "1"; name = "Bookmarks Bar"; type = "folder" })
+    }
+
+    # Clean existing matching children to avoid duplicates on re-run
+    $targetFolderNames = @("Shelftag", "TPLinux-Kiosk", "IT_Tools", "Conso List", "Purepos Conso", "My Portal", "PCFPROv2", "Local Conso", "PurePOS HQ", "PCFPRO")
+    $keptChildren = @()
+    if ($Json.roots.bookmark_bar.children) {
+        foreach ($c in $Json.roots.bookmark_bar.children) {
+            if ($targetFolderNames -notcontains $c.name) {
+                $keptChildren += $c
+            }
+        }
+    }
+
+    $Json.roots.bookmark_bar.children = @($keptChildren) + @($NewChildren)
+    $Json.checksum = ""
+
+    $outputJson = $Json | ConvertTo-Json -Depth 100
+    [System.IO.File]::WriteAllText($BookmarkFile, $outputJson, [System.Text.Encoding]::UTF8)
+
+    # Enforce Bookmark Bar visibility
+    Write-Host "Enforcing Bookmark Bar visibility in $profileDir..." -ForegroundColor Cyan
+    $PrefsJson = if (Test-Path $PreferencesFile) {
+        try { Get-Content $PreferencesFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { [PSCustomObject]@{} }
+    } else {
+        [PSCustomObject]@{}
+    }
+    if (-not $PrefsJson) { $PrefsJson = [PSCustomObject]@{} }
+    if (-not ($PrefsJson.PSObject.Properties['bookmark_bar'])) {
+        $PrefsJson | Add-Member -NotePropertyName 'bookmark_bar' -NotePropertyValue ([PSCustomObject]@{})
+    }
+    if (-not ($PrefsJson.bookmark_bar.PSObject.Properties['show_on_all_tabs'])) {
+        $PrefsJson.bookmark_bar | Add-Member -NotePropertyName 'show_on_all_tabs' -NotePropertyValue $true
+    } else {
+        $PrefsJson.bookmark_bar.show_on_all_tabs = $true
+    }
+    $outputPrefs = $PrefsJson | ConvertTo-Json -Depth 100
+    [System.IO.File]::WriteAllText($PreferencesFile, $outputPrefs, [System.Text.Encoding]::UTF8)
 }
+
+Write-Host "Done! Launching Chrome..." -ForegroundColor Green
+$chromeExe = "chrome.exe"
+$commonChrome = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"
+$commonChromeX86 = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+if (Test-Path $commonChrome) { $chromeExe = $commonChrome }
+elseif (Test-Path $commonChromeX86) { $chromeExe = $commonChromeX86 }
+Start-Process $chromeExe -ErrorAction SilentlyContinue
 """;
         }
 

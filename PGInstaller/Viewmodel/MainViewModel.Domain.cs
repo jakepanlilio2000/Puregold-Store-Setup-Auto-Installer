@@ -1,12 +1,13 @@
-﻿using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
-using System.DirectoryServices.AccountManagement;
-using System.Management;
+using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
-using System.Runtime.InteropServices;
-using System.Security;
+using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -14,96 +15,20 @@ namespace PGInstaller.Viewmodel
 {
     partial class MainViewModel
     {
+        private string _lastDomainName = "";
+
         private bool IsDomainJoined()
         {
             try
             {
-                var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
-                return !string.IsNullOrEmpty(properties.DomainName) && properties.DomainName != properties.HostName;
+                var properties = IPGlobalProperties.GetIPGlobalProperties();
+                return !string.IsNullOrEmpty(properties.DomainName) &&
+                       !properties.DomainName.Equals(properties.HostName, StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
                 return false;
             }
-        }
-
-        private async Task<(bool success, bool rebootRequired, string message)> JoinDomainAsync(string domain, string username, SecureString securePassword)
-        {
-            return await Task.Run(() =>
-            {
-                IntPtr passwordPtr = IntPtr.Zero;
-                try
-                {
-                    passwordPtr = Marshal.SecureStringToBSTR(securePassword);
-                    string plainPassword = Marshal.PtrToStringBSTR(passwordPtr);
-                    using var context = new PrincipalContext(ContextType.Domain, domain);
-                    if (!context.ValidateCredentials(username, plainPassword))
-                    {
-                        return (false, false, "Invalid credentials. Please check your username and password.");
-                    }
-                    using var cs = new ManagementClass("Win32_ComputerSystem");
-                    foreach (var obj in cs.GetInstances())
-                    {
-                        using var computer = (ManagementObject)obj;
-                        var args = new object[] { domain, plainPassword, username, null!, 3 };
-                        var result = computer.InvokeMethod("JoinDomainOrWorkgroup", args);
-
-                        int returnCode = Convert.ToInt32(result);
-
-                        Array.Clear(args, 0, args.Length);
-                        plainPassword = "";
-
-                        if (returnCode == 0)
-                        {
-                            return (true, false, "Successfully joined the domain.");
-                        }
-                        else if (returnCode == 2691)
-                        {
-                            return (true, true, "Successfully joined the domain. A reboot is required to complete the process.");
-                        }
-                        else
-                        {
-                            string errorMsg = GetDomainJoinErrorMessage(returnCode);
-                            return (false, false, $"Failed to join domain. Error code: {returnCode} - {errorMsg}");
-                        }
-                    }
-                    return (false, false, "Could not find computer system object.");
-                }
-                catch (PrincipalServerDownException)
-                {
-                    return (false, false, "Domain controller unreachable. Please check network connectivity and DNS.");
-                }
-                catch (PrincipalOperationException ex)
-                {
-                    return (false, false, $"Domain operation failed: {ex.Message}");
-                }
-                catch (Exception ex)
-                {
-                    return (false, false, $"Exception during domain join: {ex.Message}");
-                }
-                finally
-                {
-                    if (passwordPtr != IntPtr.Zero)
-                    {
-                        Marshal.ZeroFreeBSTR(passwordPtr);
-                    }
-                }
-            });
-        }
-
-        private string GetDomainJoinErrorMessage(int code)
-        {
-            return code switch
-            {
-                5 => "Access denied. Insufficient permissions.",
-                87 => "Invalid parameter.",
-                1326 => "Logon failure: unknown user name or bad password.",
-                1355 => "The specified domain either does not exist or could not be contacted.",
-                1909 => "The referenced account is currently locked out.",
-                2087 => "The computer could not be added to the domain. The account already exists.",
-                2224 => "The account already exists.",
-                _ => "Unknown error."
-            };
         }
 
         [RelayCommand]
@@ -113,16 +38,13 @@ namespace PGInstaller.Viewmodel
             string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
                 ShowInputDialog("Enter new computer name:", currentName));
 
-            if (!string.IsNullOrWhiteSpace(newName) && newName != currentName)
+            if (!string.IsNullOrWhiteSpace(newName) && !newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
             {
-                Log($"   [INIT] Renaming computer to '{newName}'...");
-                try
+                bool renamed = await ExecuteRenameComputerInternal(newName);
+                if (renamed)
                 {
-                    // WMIC is universally supported for renaming in Windows
-                    await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer", true);
-
                     var restart = MessageBox.Show(
-                        "A restart is required to apply the new computer name.\n\nRestart now?",
+                        $"Computer has been renamed to '{newName}'.\n\nA restart is required to apply the new computer name.\n\nRestart now?",
                         "Restart Required",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Information);
@@ -138,154 +60,289 @@ namespace PGInstaller.Viewmodel
                         });
                     }
                 }
+            }
+        }
+
+        public async Task<(bool valid, string message)> ValidateDomainPrerequisitesAsync(string domainName)
+        {
+            return await Task.Run(async () =>
+            {
+                if (string.IsNullOrWhiteSpace(domainName))
+                {
+                    return (false, "Domain name cannot be empty.");
+                }
+
+                string domain = domainName.Trim();
+
+                // 1. Check network availability
+                if (!NetworkInterface.GetIsNetworkAvailable())
+                {
+                    return (false, "No active network connection detected. Please connect an Ethernet cable or connect to Wi-Fi.");
+                }
+
+                // 2. Gather active DNS servers from UP interfaces
+                var dnsServers = new List<string>();
+                try
+                {
+                    var interfaces = NetworkInterface.GetAllNetworkInterfaces()
+                        .Where(n => n.OperationalStatus == OperationalStatus.Up &&
+                                    n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+
+                    foreach (var iface in interfaces)
+                    {
+                        var ipProps = iface.GetIPProperties();
+                        foreach (var dns in ipProps.DnsAddresses)
+                        {
+                            if (dns.AddressFamily == AddressFamily.InterNetwork)
+                            {
+                                string ipStr = dns.ToString();
+                                if (!dnsServers.Contains(ipStr))
+                                {
+                                    dnsServers.Add(ipStr);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                string dnsSummary = dnsServers.Count > 0 ? string.Join(", ", dnsServers) : "None detected";
+
+                // 3. DNS Resolution Check
+                IPAddress[] hostAddresses;
+                try
+                {
+                    hostAddresses = await Dns.GetHostAddressesAsync(domain);
+                }
+                catch (SocketException)
+                {
+                    return (false,
+                        $"Could not resolve domain '{domain}' via DNS.\n\n" +
+                        $"Current DNS Server(s) on this PC: {dnsSummary}\n\n" +
+                        $"Active Directory requires this computer's Primary DNS to point directly to the Domain Controller IP (e.g., 192.168.1.100 or store server).\n\n" +
+                        $"If your DNS is set to a router (like 192.168.100.1 or 192.168.1.1) or public DNS (8.8.8.8), the domain controller cannot be contacted.");
+                }
                 catch (Exception ex)
                 {
-                    Log($"   [ERROR] Failed to rename computer: {ex.Message}");
+                    return (false, $"DNS resolution error for '{domain}': {ex.Message}");
                 }
-            }
 
+                if (hostAddresses == null || hostAddresses.Length == 0)
+                {
+                    return (false, $"No IP addresses found for domain '{domain}'. Please verify your DNS settings.");
+                }
+
+                // 4. Test connectivity to DC (port 389 LDAP, 445 SMB, 53 DNS, 88 Kerberos)
+                var ipv4Addresses = hostAddresses.Where(a => a.AddressFamily == AddressFamily.InterNetwork).ToArray();
+                if (ipv4Addresses.Length > 0)
+                {
+                    var targetIp = ipv4Addresses[0];
+                    bool reachable = false;
+                    int[] portsToTest = { 389, 445, 53, 88 };
+
+                    foreach (int port in portsToTest)
+                    {
+                        try
+                        {
+                            using var tcpClient = new TcpClient();
+                            var connectTask = tcpClient.ConnectAsync(targetIp, port);
+                            if (await Task.WhenAny(connectTask, Task.Delay(2000)) == connectTask && tcpClient.Connected)
+                            {
+                                reachable = true;
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (!reachable)
+                    {
+                        return (false,
+                            $"Domain '{domain}' resolved to {targetIp}, but the Domain Controller did not respond on AD ports (389 LDAP / 445 SMB / 53 DNS).\n\n" +
+                            $"Please verify that the Domain Controller is online and that network firewall rules allow Active Directory communication.");
+                    }
+                }
+
+                return (true, $"Domain '{domain}' is reachable.");
+            });
         }
-        private async Task<bool> HandleDomainJoinAsync()
+
+        public async Task<(bool success, bool rebootRequired, string message)> ExecuteDomainJoinAsync(
+            string domainName,
+            string domainUser,
+            string domainPassword)
         {
-            try
+            return await Task.Run(async () =>
             {
-                var properties = IPGlobalProperties.GetIPGlobalProperties();
+                string trimmedDomain = domainName.Trim();
+                string rawUser = domainUser.Trim();
 
-                if (!string.IsNullOrEmpty(properties.DomainName) &&
-                    !properties.DomainName.Equals(properties.HostName, StringComparison.OrdinalIgnoreCase))
+                // Format username properly (do not prepend domain if already qualified)
+                string fullUsername;
+                if (rawUser.Contains('\\') || rawUser.Contains('@'))
                 {
-                    Log($"   [INFO] Computer is already joined to domain: '{properties.DomainName}'. Skipping domain join prompt.");
-                    return true;
+                    fullUsername = rawUser;
                 }
-            }
-            catch
-            {
-
-            }
-
-            if (JoinDomainAfterInstall)
-            {
-                string domainName = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter Domain Name (e.g., corp.local):", ""));
-
-                string domainUser = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter Domain Admin Username:", "Administrator"));
-
-                string domainPassword = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter Domain Admin Password:", ""));
-
-                if (string.IsNullOrWhiteSpace(domainName) || string.IsNullOrWhiteSpace(domainUser))
+                else
                 {
-                    Log("   [WARN] Domain join cancelled or incomplete.");
-                    return true; 
+                    fullUsername = $"{trimmedDomain}\\{rawUser}";
                 }
 
-                Log($"   [INIT] Joining domain: {domainName}...");
+                Log($"   [INIT] Joining domain: {trimmedDomain} with user account '{fullUsername}'...");
+
+                string escapedDomain = trimmedDomain.Replace("'", "''");
+                string escapedUser = fullUsername.Replace("'", "''");
+                string escapedPass = domainPassword.Replace("'", "''");
 
                 string script = $@"
-$domain = '{domainName}'
-$username = '{domainName}\{domainUser}'
-$password = ConvertTo-SecureString '{domainPassword}' -AsPlainText -Force
+$domain = '{escapedDomain}'
+$username = '{escapedUser}'
+$password = ConvertTo-SecureString '{escapedPass}' -AsPlainText -Force
 $credential = New-Object System.Management.Automation.PSCredential($username, $password)
 
 try {{
     Add-Computer -DomainName $domain -Credential $credential -Force -ErrorAction Stop
-    Write-Host 'Successfully joined the domain.'
+    Write-Output 'Successfully joined the domain.'
+    exit 0
 }} catch {{
-    Write-Error $_.Exception.Message
+    [Console]::Error.WriteLine($_.Exception.Message)
     exit 1
 }}
 ";
                 byte[] scriptBytes = Encoding.Unicode.GetBytes(script);
                 string encodedScript = Convert.ToBase64String(scriptBytes);
 
-                bool success = await RunProcessAsync(
-                    "powershell",
-                    $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
-                    "Joining Domain",
-                    true);
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
+                };
+
+                var outputBuilder = new StringBuilder();
+                var errorBuilder = new StringBuilder();
+
+                using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+                process.OutputDataReceived += (s, e) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(e.Data))
+                    {
+                        outputBuilder.AppendLine(e.Data);
+                        string? clean = CleanLogLine(e.Data);
+                        if (clean != null) Log($"    > {clean}");
+                    }
+                };
+
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(e.Data))
+                    {
+                        errorBuilder.AppendLine(e.Data);
+                        string? clean = CleanLogLine(e.Data);
+                        if (clean != null) Log($"    > {clean}");
+                    }
+                };
+
+                CurrentTaskDescription = "Joining Domain";
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                await process.WaitForExitAsync();
+
+                bool success = process.ExitCode == 0;
 
                 if (success)
                 {
                     Log("   [SUCCESS] Successfully joined the domain.");
-                    var restart = MessageBox.Show(
-                        "A restart is required to complete the domain join and apply Group Policies.\n\nRestart now?",
-                        "Restart Required",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
-
-                    if (restart == MessageBoxResult.Yes)
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "shutdown.exe",
-                            Arguments = "/r /t 0",
-                            CreateNoWindow = true,
-                            UseShellExecute = false
-                        });
-                        return false; 
-                    }
+                    _lastDomainName = trimmedDomain;
+                    return (true, true, $"Successfully joined domain '{trimmedDomain}'. A computer restart is required to apply changes.");
                 }
                 else
                 {
-                    Log("   [ERROR] Failed to join the domain. Check credentials and network connectivity.");
+                    string rawError = errorBuilder.ToString().Trim();
+                    string translated = TranslateDomainError(rawError, trimmedDomain, fullUsername);
+                    Log($"   [ERROR] Failed to join domain: {translated}");
+                    return (false, false, translated);
                 }
-            }
-            else
-            {
-                Log("   [INFO] Domain join skipped (checkbox unchecked or already joined).");
-            }
-
-            return true;
+            });
         }
-        [RelayCommand]
-        private async Task JoinDomain()
+
+        private string TranslateDomainError(string rawError, string domain, string user)
         {
-            string domainName = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Domain Name (e.g., corp.local):", ""));
-
-            string domainUser = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Domain Admin Username:", "Administrator"));
-
-            string domainPassword = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Domain Admin Password:", ""));
-
-            if (string.IsNullOrWhiteSpace(domainName) || string.IsNullOrWhiteSpace(domainUser))
+            if (string.IsNullOrWhiteSpace(rawError))
             {
-                Log("   [WARN] Domain join cancelled or incomplete.");
-                return;
+                return "Failed to join domain. Check credentials, DNS configuration, and network connectivity.";
             }
 
-            Log($"   [INIT] Joining domain: {domainName}...");
-
-            string script = $@"
-$domain = '{domainName}'
-$username = '{domainName}\{domainUser}'
-$password = ConvertTo-SecureString '{domainPassword}' -AsPlainText -Force
-$credential = New-Object System.Management.Automation.PSCredential($username, $password)
-
-try {{
-    Add-Computer -DomainName $domain -Credential $credential -Force -ErrorAction Stop
-    Write-Host 'Successfully joined the domain.'
-}} catch {{
-    Write-Error $_.Exception.Message
-    exit 1
-}}
-";
-            byte[] scriptBytes = Encoding.Unicode.GetBytes(script);
-            string encodedScript = Convert.ToBase64String(scriptBytes);
-
-            bool success = await RunProcessAsync(
-                "powershell",
-                $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
-                "Joining Domain",
-                true);
-
-            if (success)
+            if (rawError.Contains("The specified domain either does not exist or could not be contacted", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("1355"))
             {
-                Log("   [SUCCESS] Successfully joined the domain.");
+                return $"The domain '{domain}' either does not exist or could not be contacted.\n\n" +
+                       "Please ensure the computer is connected to the store network and that Primary DNS points directly to the Domain Controller IP.";
+            }
+
+            if (rawError.Contains("Logon failure", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("unknown user name or bad password", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("1326"))
+            {
+                return $"Logon failure: Invalid username or password for account '{user}'. Please verify the credentials.";
+            }
+
+            if (rawError.Contains("Access is denied", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("Access denied", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains(" 5 "))
+            {
+                return $"Access denied for account '{user}'. This account does not have permission to join computers to domain '{domain}'.";
+            }
+
+            if (rawError.Contains("The account already exists", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("2224") || rawError.Contains("2087"))
+            {
+                return $"The computer account '{Environment.MachineName}' already exists in domain '{domain}'.";
+            }
+
+            if (rawError.Contains("locked out", StringComparison.OrdinalIgnoreCase) ||
+                rawError.Contains("1909"))
+            {
+                return $"The user account '{user}' is currently locked out in Active Directory.";
+            }
+
+            // Strip CLIXML fragments if any exist
+            string cleaned = Regex.Replace(rawError, @"<[^>]+>", " ").Trim();
+            cleaned = Regex.Replace(cleaned, @"_x000D__x000A_", " ").Trim();
+            cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+
+            return !string.IsNullOrWhiteSpace(cleaned) ? cleaned : rawError;
+        }
+
+        private async Task<bool> PromptAndExecuteDomainJoinAsync(bool isPartOfInstaller)
+        {
+            var dialogResult = await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                string initialDomain = !string.IsNullOrWhiteSpace(_lastDomainName) ? _lastDomainName : "";
+                var joinWindow = new DomainJoinWindow(initialDomain)
+                {
+                    Owner = Application.Current.MainWindow,
+                    ValidateAction = ValidateDomainPrerequisitesAsync,
+                    JoinAction = ExecuteDomainJoinAsync
+                };
+
+                return joinWindow.ShowDialog();
+            });
+
+            if (dialogResult == true)
+            {
+                await CheckDomainStatusAsync();
+
                 var restart = MessageBox.Show(
-                    "A restart is required to complete the domain join and apply Group Policies.\n\nRestart now?",
+                    "Domain join completed successfully!\n\nA system restart is required to complete the domain join and apply Group Policies.\n\nRestart now?",
                     "Restart Required",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Information);
@@ -299,13 +356,65 @@ try {{
                         CreateNoWindow = true,
                         UseShellExecute = false
                     });
+                    return false; // reboot initiated, abort installer flow
                 }
+
+                return true; // user postponed restart
             }
             else
             {
-                Log("   [ERROR] Failed to join the domain. Check credentials and network connectivity.");
+                Log("   [INFO] Domain join cancelled by user.");
+                return true; // continue setup without domain join
             }
         }
-    }
 
+        private async Task<bool> HandleDomainJoinAsync()
+        {
+            try
+            {
+                var properties = IPGlobalProperties.GetIPGlobalProperties();
+
+                if (!string.IsNullOrEmpty(properties.DomainName) &&
+                    !properties.DomainName.Equals(properties.HostName, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log($"   [INFO] Computer is already joined to domain: '{properties.DomainName}'. Skipping domain join prompt.");
+                    return true;
+                }
+            }
+            catch { }
+
+            if (JoinDomainAfterInstall)
+            {
+                return await PromptAndExecuteDomainJoinAsync(isPartOfInstaller: true);
+            }
+            else
+            {
+                Log("   [INFO] Domain join skipped (checkbox unchecked or already joined).");
+                return true;
+            }
+        }
+
+        [RelayCommand]
+        private async Task JoinDomain()
+        {
+            try
+            {
+                var properties = IPGlobalProperties.GetIPGlobalProperties();
+                if (!string.IsNullOrEmpty(properties.DomainName) &&
+                    !properties.DomainName.Equals(properties.HostName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var already = MessageBox.Show(
+                        $"This computer is already joined to domain: '{properties.DomainName}'.\n\nDo you want to join a different domain?",
+                        "Already Joined Domain",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (already != MessageBoxResult.Yes) return;
+                }
+            }
+            catch { }
+
+            await PromptAndExecuteDomainJoinAsync(isPartOfInstaller: false);
+        }
+    }
 }

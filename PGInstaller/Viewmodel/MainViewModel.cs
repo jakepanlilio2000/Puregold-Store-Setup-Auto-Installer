@@ -388,6 +388,14 @@ namespace PGInstaller.Viewmodel
                 }
                 IncrementProgress();
 
+                bool assetsVerified = await VerifyRequiredAssetsAsync(selectedApps);
+                if (!assetsVerified)
+                {
+                    Log("CRITICAL: Asset verification failed or was cancelled by user. Stopping.");
+                    return;
+                }
+                IncrementProgress();
+
                 switch (SelectedDepartment)
                 {
                     case "IT": await InstallITPackage(selectedApps); break;
@@ -420,6 +428,163 @@ namespace PGInstaller.Viewmodel
                 Log("------------------------------------------------");
                 Log("Process Completed.");
                 Application.Current.Dispatcher.Invoke(ShowInstallationSummary);
+            }
+        }
+
+        private async Task<bool> VerifyRequiredAssetsAsync(List<string> selectedApps)
+        {
+            Log("   [VERIFY] Validating installer files for selected applications...");
+            var appToFileMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Google Chrome", new[] { "chrome.exe" } },
+                { "Mozilla Firefox", new[] { "Firefox.exe" } },
+                { "Microsoft Edge", new[] { "edge.msi" } },
+                { "WinRAR", new[] { "winrar.exe" } },
+                { "Revo Uninstaller Pro", new[] { "revo.exe" } },
+                { "IObit Driver Booster", new[] { "drv.exe" } },
+                { "Notepad++", new[] { "npp.exe" } },
+                { "Mozilla Thunderbird", new[] { "Thunderbird.exe" } },
+                { "Sticky Notes", new[] { "sticky.exe" } },
+                { "Adobe Acrobat PRO DC", new[] { "acrobat.zip", "acrobat.exe" } },
+                { "WPS Office 2020", new[] { "WPS.zip", "wps.exe" } },
+                { "Radmin Server", new[] { "radmins.msi" } },
+                { "Radmin Server (+ Config)", new[] { "radmins.msi" } },
+                { "All VC++ Redistributables", new[] { "vcredistAIO.zip", "vcredist.exe" } },
+                { "Zoom", new[] { "zoom.exe", "ZoomInstaller.exe" } },
+                { "Advanced IP Scanner", new[] { "ipscan.exe" } },
+                { "PITK", new[] { "pitk.zip", "pitk.exe" } },
+                { "A&VGW", new[] { "avgw.exe" } },
+                { "PuTTY", new[] { "putty.zip", "putty.exe" } },
+                { "WinSCP", new[] { "winscp.zip", "winscp.exe" } },
+                { "Radmin Viewer", new[] { "radminv.msi", "radminv.exe" } },
+                { "PIMS", new[] { "pims.zip" } },
+                { "MMS (PCOMM)", new[] { "mms.zip", "pcomm.exe" } },
+                { ".NET Framework 3.5", new[] { "netfx.zip", "netfx3.cab" } },
+                { "FSDM", new[] { "fsdm.zip" } },
+                { "Wamp 1.7.2", new[] { "wamp1.7.exe" } },
+                { "Wamp 2", new[] { "wamp2.exe" } },
+                { "Wamp 2.5", new[] { "wamp2.5.exe" } },
+                { "Wampserver 3.4.0", new[] { "wamp3.4.exe" } },
+                { "Bartender 10.1", new[] { "bt10.1.exe" } },
+                { "Bartender 2016", new[] { "bt2016.exe", "bp2016.exe" } },
+                { "Bartender 2022", new[] { "bt2022.exe" } },
+                { "Argox Driver", new[] { "argox.exe" } },
+                { "Zebra Driver", new[] { "zebra.exe" } },
+                { "Inventory Tools", new[] { "inventory.zip", "tools.zip" } },
+                { "Variance", new[] { "variance.zip" } },
+                { "Coreldraw Graphics X5", new[] { "cx5.exe", "corel_x5.exe" } },
+                { "Coreldraw Graphics X7", new[] { "cx7.exe", "corel_x7.exe" } },
+                { "Photoshop CS6", new[] { "Photoshop_13_LS16.7z", "photoshop.zip" } },
+                { "Illustrator CS6", new[] { "Illustrator_16_LS16.7z", "illustrator.zip" } },
+                { "Oracle Java Runtime", new[] { "jre.exe", "java.exe" } },
+                { "Java Oracle", new[] { "jre.exe", "java.exe" } },
+                { "VLC Media Player", new[] { "vlc.exe" } }
+            };
+
+            var missing = new List<string>();
+
+            foreach (var app in selectedApps)
+            {
+                if (!appToFileMap.TryGetValue(app, out var candidateFiles)) continue;
+
+                if (IsAppInstalled(app) && !IsForceInstall(app, null)) continue;
+
+                bool found = false;
+                foreach (var file in candidateFiles)
+                {
+                    string? path = ResolveAssetPath(file);
+                    if (!string.IsNullOrEmpty(path) && (File.Exists(path) || Directory.Exists(path)))
+                    {
+                        found = true;
+                        break;
+                    }
+
+                    // Attempt on-demand extraction from assets.zip
+                    if (await ExtractSpecificFile(null, $"*{file}*"))
+                    {
+                        path = ResolveAssetPath(file);
+                        if (!string.IsNullOrEmpty(path) && (File.Exists(path) || Directory.Exists(path)))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!found)
+                {
+                    string expected = string.Join(" or ", candidateFiles);
+                    missing.Add($"{app} (File: {expected})");
+                    Log($"   [WARN] Missing installer asset for '{app}' (Expected: {expected})");
+                }
+            }
+
+            if (missing.Count > 0)
+            {
+                Log($"   [VERIFY FAILED] {missing.Count} application installer(s) missing from Assets.");
+
+                var userChoice = await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    string msg = $"The Assets folder is present, but {missing.Count} installer file(s) are missing:\n\n" +
+                                 string.Join("\n", missing.Take(8).Select(m => $" • {m}")) +
+                                 (missing.Count > 8 ? $"\n ...and {missing.Count - 8} more" : "") +
+                                 "\n\nWould you like to proceed with installing only the available packages?";
+                    return MessageBox.Show(msg, "Missing Installer Files", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                });
+
+                if (userChoice != MessageBoxResult.Yes)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                Log("   [VERIFY SUCCESS] All required installer files verified.");
+            }
+
+            return true;
+        }
+
+        [RelayCommand]
+        private void SelectAllManifest()
+        {
+            foreach (var item in FilteredPreviewList.OfType<InstallAppItem>())
+            {
+                if (!item.IsInstalled)
+                {
+                    item.IsChecked = true;
+                }
+            }
+            UpdatePendingTasksCount();
+        }
+
+        [RelayCommand]
+        private void DeselectAllManifest()
+        {
+            foreach (var item in FilteredPreviewList.OfType<InstallAppItem>())
+            {
+                item.IsChecked = false;
+            }
+            UpdatePendingTasksCount();
+        }
+
+        [RelayCommand]
+        private void ClearLog()
+        {
+            LogOutput = string.Empty;
+        }
+
+        [RelayCommand]
+        private void CopyLog()
+        {
+            if (!string.IsNullOrEmpty(LogOutput))
+            {
+                try
+                {
+                    Clipboard.SetText(LogOutput);
+                    Log("   [INFO] Terminal output copied to clipboard.");
+                }
+                catch { }
             }
         }
 
@@ -915,6 +1080,23 @@ namespace PGInstaller.Viewmodel
                        IsAppInstalled("Visual C++");
             }
 
+            if (appName.Equals("PITK", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsAppInstalled("PITK") ||
+                       IsAppInstalled("Puregold IT Toolkit") ||
+                       File.Exists(@"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe") ||
+                       File.Exists(@"C:\Program Files\Puregold IT Toolkit\PuregoldITToolkit.exe");
+            }
+
+            if (appName.Equals("A&VGW", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsAppInstalled("A&VGW") ||
+                       IsAppInstalled("Annual & Variance Gateway") ||
+                       IsAppInstalled("Annual and Variance Gateway") ||
+                       File.Exists(@"C:\Program Files (x86)\Annual & Variance Gateway\Annual And Variance Gateway.exe") ||
+                       File.Exists(@"C:\Program Files\Annual & Variance Gateway\Annual And Variance Gateway.exe");
+            }
+
             string searchTerm = GetRegistrySearchTerm(appName);
             if (IsAppInstalled(searchTerm)) return true;
             if (!searchTerm.Equals(appName, StringComparison.OrdinalIgnoreCase) && IsAppInstalled(appName)) return true;
@@ -1113,6 +1295,21 @@ namespace PGInstaller.Viewmodel
             if (line.Contains("Extracting", StringComparison.OrdinalIgnoreCase)) return null!;
             if (line.Contains("VERBOSE1:chrome", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("installer.cc", StringComparison.OrdinalIgnoreCase)) return null!;
+
+            // Suppress PowerShell CLIXML serialization streams
+            if (line.StartsWith("#< CLIXML", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<Objs", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("</Objs>", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<Obj", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<TN", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<T>", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<MS>", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<PR", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<AV>", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("<S S=", StringComparison.OrdinalIgnoreCase))
+            {
+                return null!;
+            }
 
             if (Regex.IsMatch(line, @"\d+%$")) return null!;
 

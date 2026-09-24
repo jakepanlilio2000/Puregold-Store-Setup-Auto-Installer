@@ -76,14 +76,16 @@ namespace PGInstaller.Viewmodel
 
                         if (SelectedAntivirus.Contains("Avast", StringComparison.OrdinalIgnoreCase))
                         {
-                            Log("   [INSTALL] Starting Avast Silent Install...");
+                            Log("   [INSTALL] Starting Avast Premium Silent Install...");
 
-                            var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault();
+                            var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault()
+                                          ?? Directory.GetFiles(extractDir, "*Silent*Install*.cmd", SearchOption.AllDirectories).FirstOrDefault()
+                                          ?? Directory.GetFiles(extractDir, "*Silent*Install*.bat", SearchOption.AllDirectories).FirstOrDefault();
 
                             if (cmdFile != null)
                             {
-                                string? scriptDir = Path.GetDirectoryName(cmdFile);
-
+                                Log($"   [EXEC] Running '{Path.GetFileName(cmdFile)}'...");
+                                string? scriptDir = Path.GetDirectoryName(cmdFile) ?? extractDir;
                                 var startInfo = new ProcessStartInfo
                                 {
                                     FileName = "cmd.exe",
@@ -94,12 +96,23 @@ namespace PGInstaller.Viewmodel
                                     RedirectStandardOutput = true,
                                     RedirectStandardError = true
                                 };
-
-                                await RunCustomProcess(startInfo, "Avast Setup");
+                                await RunCustomProcess(startInfo, "Avast Premium Silent Install");
                             }
                             else
                             {
-                                Log("   [ERROR] 'Silent Installing.cmd' not found.");
+                                var avastExe = Directory.GetFiles(extractDir, "*Avast*Premium*.exe", SearchOption.AllDirectories).FirstOrDefault()
+                                               ?? Directory.GetFiles(extractDir, "Avast.Premium.exe", SearchOption.AllDirectories).FirstOrDefault()
+                                               ?? Directory.GetFiles(extractDir, "*Avast*.exe", SearchOption.AllDirectories).FirstOrDefault();
+
+                                if (avastExe != null)
+                                {
+                                    Log($"   [EXEC] Executing '{Path.GetFileName(avastExe)}' in silent mode...");
+                                    await RunProcessAsync(avastExe, "/silent", "Avast Premium Setup");
+                                }
+                                else
+                                {
+                                    Log("   [ERROR] 'Silent Installing.cmd' or Avast installer executable not found in extracted archive.");
+                                }
                             }
                         }
                         else if (SelectedAntivirus.Contains("Symantec", StringComparison.OrdinalIgnoreCase))
@@ -151,5 +164,4 @@ namespace PGInstaller.Viewmodel
             }
         }
     }
-}
 }

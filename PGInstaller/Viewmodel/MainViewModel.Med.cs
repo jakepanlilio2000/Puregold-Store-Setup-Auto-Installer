@@ -21,7 +21,7 @@ namespace PGInstaller.Viewmodel
             { "Coreldraw Graphics X7 Keygen", "cx7.exe" },
             { "Adobe Patcher", "GenP.exe" },
             { "Bartender 2022 Patcher", "bp2022p.exe" },
-            { "Bartender 2016 Patcher", "bp2016p.exe" },
+            { "Bartender 2016 Patcher", "bt2016p.exe" },
             { "Bartender 10.1 Patcher", "bp10.1p.exe" },
         };
 
@@ -37,11 +37,24 @@ namespace PGInstaller.Viewmodel
                 string relativePath = Path.Combine("activators", fileName);
                 string? fullPath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
 
+                // Fallback for bt2016p.exe / bp2016p.exe spelling variation
+                if ((string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) && fileName == "bt2016p.exe")
+                {
+                    fullPath = ResolveAssetPath(Path.Combine("activators", "bp2016p.exe")) ?? ResolveAssetPath("bp2016p.exe")
+                               ?? ResolveAssetPath(Path.Combine("activators", "bt2016.exe")) ?? ResolveAssetPath("bt2016.exe");
+                }
+
                 // Lazy on-demand extraction if file does not yet exist in Assets
                 if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath))
                 {
                     await ExtractSpecificFile(null, $"*{fileName}*");
                     fullPath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
+                    if ((string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) && fileName == "bt2016p.exe")
+                    {
+                        await ExtractSpecificFile(null, "*bp2016*");
+                        fullPath = ResolveAssetPath(Path.Combine("activators", "bp2016p.exe")) ?? ResolveAssetPath("bp2016p.exe")
+                                   ?? ResolveAssetPath(Path.Combine("activators", "bt2016.exe")) ?? ResolveAssetPath("bt2016.exe");
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath))
