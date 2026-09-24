@@ -1330,12 +1330,24 @@ Require all granted
             IncrementProgress();
         }
 
-        private string GetSubnetPrefix()
+        private string GetSubnetPrefix(string? ip = null)
         {
-            if (!string.IsNullOrWhiteSpace(TargetIp))
+            string sourceIp = !string.IsNullOrWhiteSpace(ip)
+                ? ip
+                : (!string.IsNullOrWhiteSpace(_consoIpInput) ? _consoIpInput : TargetIp);
+
+            if (!string.IsNullOrWhiteSpace(sourceIp))
             {
-                var parts = TargetIp.Trim().Split('.');
-                if (parts.Length == 4 && parts.All(p => int.TryParse(p, out int n) && n >= 0 && n <= 255))
+                string clean = sourceIp.Trim();
+                if (clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) clean = clean.Substring(7);
+                if (clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) clean = clean.Substring(8);
+                int slashIdx = clean.IndexOf('/');
+                if (slashIdx >= 0) clean = clean.Substring(0, slashIdx);
+                int colonIdx = clean.IndexOf(':');
+                if (colonIdx >= 0) clean = clean.Substring(0, colonIdx);
+
+                var parts = clean.Split('.');
+                if (parts.Length >= 3 && parts.Take(3).All(p => int.TryParse(p, out int n) && n >= 0 && n <= 255))
                 {
                     return $"{parts[0]}.{parts[1]}.{parts[2]}";
                 }
@@ -1345,11 +1357,13 @@ Require all granted
 
         private async Task GeneratePOSConfigurations(int posCount)
         {
-            Log($"   [CONFIG] Generating dynamic POS configurations for {posCount} terminals...");
-            string subnet = GetSubnetPrefix();
+            string storeIp = await GetOrPromptConsoIpAsync();
+            string subnet = GetSubnetPrefix(storeIp);
             string consoIp = $"{subnet}.50";
 
-            // --- 1. Dynamic WinSCP.ini Generation ---
+            Log($"   [CONFIG] Generating dynamic POS configurations for {posCount} terminals (Subnet: {subnet}, Conso: {consoIp})...");
+
+            // --- 1. Dynamic WinSCP.ini & Registry Generation ---
             try
             {
                 var sb = new System.Text.StringBuilder();
@@ -1380,7 +1394,7 @@ Require all granted
                 for (int i = 1; i <= posCount; i++)
                 {
                     string posIp = $"{subnet}.{50 + i}";
-                    sb.AppendLine($"[Sessions\\POS%{20}{i}]");
+                    sb.AppendLine($"[Sessions\\POS%20{i}]");
                     sb.AppendLine($"HostName={posIp}");
                     sb.AppendLine("PortNumber=22");
                     sb.AppendLine("FSProtocol=0");
@@ -1392,7 +1406,8 @@ Require all granted
                 string[] winScpDirs =
                 [
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinSCP"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP")
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinSCP")
                 ];
 
                 bool written = false;
@@ -1428,6 +1443,40 @@ Require all granted
                     {
                         Log($"   [ERROR] Failed to create WinSCP folder/ini: {ex.Message}");
                     }
+                }
+
+                // Also write to Windows Registry for WinSCP so sessions are available in Registry mode
+                try
+                {
+                    const string winscpSessionsKey = @"Software\Martin Prikryl\WinSCP 2\Sessions";
+
+                    void SaveWinScpSession(string sessionName, string host, int port)
+                    {
+                        string encodedSession = Uri.EscapeDataString(sessionName).Replace("+", "%20");
+                        using var key = Registry.CurrentUser.CreateSubKey($@"{winscpSessionsKey}\{encodedSession}");
+                        if (key != null)
+                        {
+                            key.SetValue("HostName", host, RegistryValueKind.String);
+                            key.SetValue("PortNumber", port, RegistryValueKind.DWord);
+                            key.SetValue("FSProtocol", 0, RegistryValueKind.DWord);
+                            key.SetValue("UserName", "", RegistryValueKind.String);
+                        }
+                    }
+
+                    SaveWinScpSession("Zone 11", consoIp, 22);
+                    SaveWinScpSession("Conso Server", consoIp, 22);
+
+                    for (int i = 1; i <= posCount; i++)
+                    {
+                        string posIp = $"{subnet}.{50 + i}";
+                        SaveWinScpSession($"POS {i}", posIp, 22);
+                    }
+
+                    Log($"   [SUCCESS] WinSCP sessions registered in Windows Registry: Zone 11, Conso Server, and POS 1..{posCount}.");
+                }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed to save WinSCP sessions to registry: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -1482,7 +1531,7 @@ Require all granted
                     SaveSession($"POS {i}", posIp, 22);
                 }
 
-                Log($"   [SUCCESS] PuTTY sessions generated: Zone 11 (with {forwardings.Count} port forwardings), Conso Server, and POS 1..{posCount}.");
+                Log($"   [SUCCESS] PuTTY sessions generated: Zone 11 (with {forwardings.Count} port forwardings), Conso Server ({consoIp}), and POS 1..{posCount}.");
             }
             catch (Exception ex)
             {
@@ -1495,8 +1544,7 @@ Require all granted
             Log("------------------------------------------------");
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
 
-            string ownIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter OWN IP (for Local Conso):", !string.IsNullOrWhiteSpace(TargetIp) ? TargetIp : "192.168.1.101"));
+            string ownIp = await GetOrPromptConsoIpAsync();
 
             if (string.IsNullOrWhiteSpace(ownIp))
             {
@@ -1504,6 +1552,14 @@ Require all granted
                 IncrementProgress();
                 return;
             }
+
+            string cleanIp = ownIp.Trim();
+            if (cleanIp.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) cleanIp = cleanIp.Substring(7);
+            if (cleanIp.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) cleanIp = cleanIp.Substring(8);
+            int slashIdx = cleanIp.IndexOf('/');
+            if (slashIdx >= 0) cleanIp = cleanIp.Substring(0, slashIdx);
+            int colonIdx = cleanIp.IndexOf(':');
+            if (colonIdx >= 0) cleanIp = cleanIp.Substring(0, colonIdx);
 
             string scriptName = "cbm.ps1";
             string tempDir = @"C:\Assets\PG_CBM_Exec";
@@ -1513,32 +1569,36 @@ Require all granted
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
 
-                string? sourceScript = ResolveAssetPath(scriptName);
-                if (string.IsNullOrEmpty(sourceScript) || !File.Exists(sourceScript))
-                {
-                    string appBaseScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptName);
-                    if (File.Exists(appBaseScript))
-                    {
-                        sourceScript = appBaseScript;
-                    }
-                }
-
+                // IMPORTANT: Always use the application's bundled cbm.ps1 or embedded script.
+                // Do NOT use ResolveAssetPath which can pick up stale/broken scripts in C:\Assets!
+                string appBaseScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptName);
                 string targetScriptPath = Path.Combine(tempDir, scriptName);
-                if (!string.IsNullOrEmpty(sourceScript) && File.Exists(sourceScript))
+
+                if (File.Exists(appBaseScript))
                 {
-                    File.Copy(sourceScript, targetScriptPath, true);
+                    File.Copy(appBaseScript, targetScriptPath, true);
                 }
                 else
                 {
                     await File.WriteAllTextAsync(targetScriptPath, GetEmbeddedCbmScript());
                 }
 
-                Log("   [EXEC] Running CBM Script...");
+                // Also update C:\Assets\cbm.ps1 if C:\Assets exists so any external runner is also fixed
+                if (Directory.Exists(@"C:\Assets"))
+                {
+                    try
+                    {
+                        File.Copy(targetScriptPath, @"C:\Assets\cbm.ps1", true);
+                    }
+                    catch { }
+                }
+
+                Log($"   [EXEC] Running CBM Script with IP: {cleanIp}...");
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{targetScriptPath}\" -Department \"{SelectedDepartment}\" -OwnIP \"{ownIp.Trim()}\"",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{targetScriptPath}\" -OwnIP \"{cleanIp}\" -Department \"{SelectedDepartment}\"",
                     WorkingDirectory = tempDir,
                     UseShellExecute = false,
                     CreateNoWindow = true,

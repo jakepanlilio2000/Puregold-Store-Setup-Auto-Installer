@@ -20,6 +20,7 @@ namespace PGInstaller.Viewmodel
         private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
         private string? _sharedDatabaseIp;
+        private string? _consoIpInput;
         private CancellationTokenSource? _checkInstalledCts;
         private int? _posCount;
 
@@ -367,8 +368,16 @@ namespace PGInstaller.Viewmodel
                 }
 
                 _posCount = null;
+                _consoIpInput = null;
                 bool needsPosConfig = selectedApps.Any(a => a.Contains("PuTTY", StringComparison.OrdinalIgnoreCase) || 
                                                            a.Contains("WinSCP", StringComparison.OrdinalIgnoreCase));
+                bool needsBookmarkConfig = selectedApps.Any(a => a.Contains("Chrome Bookmarks", StringComparison.OrdinalIgnoreCase));
+
+                if (needsPosConfig || needsBookmarkConfig)
+                {
+                    await GetOrPromptConsoIpAsync();
+                }
+
                 if (needsPosConfig)
                 {
                     await GetOrPromptPosCountAsync();
@@ -586,6 +595,30 @@ namespace PGInstaller.Viewmodel
                 }
                 catch { }
             }
+        }
+
+        private async Task<string> GetOrPromptConsoIpAsync()
+        {
+            if (!string.IsNullOrWhiteSpace(_consoIpInput)) return _consoIpInput;
+
+            string defaultIp = !string.IsNullOrWhiteSpace(TargetIp) ? TargetIp.Trim() : "192.168.1.101";
+
+            string input = await Application.Current.Dispatcher.InvokeAsync(() =>
+                ShowInputDialog("Enter Store / Conso IP (for PuTTY, WinSCP, & Bookmarks):", defaultIp));
+
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                _consoIpInput = input.Trim();
+                TargetIp = _consoIpInput;
+                Log($"   [CONFIG] Store/Conso IP set to: {_consoIpInput}");
+            }
+            else
+            {
+                Log($"   [INFO] No IP entered. Defaulting to {defaultIp}.");
+                _consoIpInput = defaultIp;
+            }
+
+            return _consoIpInput;
         }
 
         private async Task<int> GetOrPromptPosCountAsync()

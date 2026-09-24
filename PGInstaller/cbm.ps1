@@ -1,8 +1,5 @@
 param(
     [Parameter(Mandatory=$false)]
-    [string]$CsvFilePath = "port# & IP ZONE11.csv",
-
-    [Parameter(Mandatory=$false)]
     [string]$OwnIP = "192.168.1.101",
 
     [Parameter(Mandatory=$false)]
