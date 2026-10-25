@@ -12,6 +12,7 @@
 		<SelfContained>false</SelfContained>
 		<IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
 		<EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+		<Version>4.1.0</Version>
 		<ApplicationIcon>ic.ico</ApplicationIcon>
 	</PropertyGroup>
 
@@ -28,12 +29,18 @@
 	<ItemGroup>
 	  <None Update="7z.dll">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	    <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
 	  </None>
 	  <None Update="7z.exe">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	    <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
 	  </None>
 	  <None Update="cbm.ps1">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	    <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
 	  </None>
 	</ItemGroup>
 

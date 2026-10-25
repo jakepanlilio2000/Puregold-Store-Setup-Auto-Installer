@@ -12,7 +12,7 @@ Write-Host "Closing Chrome..." -ForegroundColor Yellow
 Stop-Process -Name $ChromeProcessName -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Clean OwnIP for Purepos Conso URL
+
 $cleanIp = $OwnIP.Trim().TrimEnd('/')
 if ($cleanIp.StartsWith("http://", [System.StringComparison]::OrdinalIgnoreCase)) {
     $cleanIp = $cleanIp.Substring(7)
@@ -25,7 +25,7 @@ if ($cleanIp.EndsWith("/purepos_conso/login", [System.StringComparison]::Ordinal
     $consoUrl = "http://$cleanIp/purepos_conso/login"
 }
 
-# Construct Final Bookmark Structure (v3.0 - Shelftag, TPLinux-Kiosk, IT_Tools, Conso List folders removed)
+
 $NewChildren = @(
     @{
         date_added = "13300000000000000"
@@ -109,7 +109,7 @@ foreach ($profileDir in ($chromeProfiles | Select-Object -Unique)) {
         $Json.roots | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{ children = @(); id = "1"; name = "Bookmarks Bar"; type = "folder" })
     }
 
-    # Clean existing matching children to avoid duplicates on re-run
+
     $targetFolderNames = @("Shelftag", "TPLinux-Kiosk", "IT_Tools", "Conso List", "Purepos Conso", "My Portal", "PCFPROv2")
     $keptChildren = @()
     if ($Json.roots.bookmark_bar.children) {
@@ -126,7 +126,7 @@ foreach ($profileDir in ($chromeProfiles | Select-Object -Unique)) {
     $outputJson = $Json | ConvertTo-Json -Depth 100
     [System.IO.File]::WriteAllText($BookmarkFile, $outputJson, [System.Text.Encoding]::UTF8)
 
-    # Enforce Bookmark Bar visibility
+
     Write-Host "Enforcing Bookmark Bar visibility in $profileDir..." -ForegroundColor Cyan
     $PrefsJson = if (Test-Path $PreferencesFile) {
         try { Get-Content $PreferencesFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { [PSCustomObject]@{} }
@@ -153,4 +153,3 @@ $commonChromeX86 = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.ex
 if (Test-Path $commonChrome) { $chromeExe = $commonChrome }
 elseif (Test-Path $commonChromeX86) { $chromeExe = $commonChromeX86 }
 Start-Process $chromeExe -ErrorAction SilentlyContinue
-

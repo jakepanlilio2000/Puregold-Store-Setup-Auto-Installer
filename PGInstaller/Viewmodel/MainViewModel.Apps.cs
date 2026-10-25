@@ -12,7 +12,6 @@ namespace PGInstaller.Viewmodel
         private async Task InstallMMS()
         {
             string checkAppName = "IBM i Access for Windows 7.1";
-
             try
             {
                 using (var sessionMgr = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", true))
@@ -30,9 +29,8 @@ namespace PGInstaller.Viewmodel
                 Log($"   [WARN] Could not clear reboot flags: {ex.Message}");
             }
 
-            string? mmsZip = ResolveAssetPath("mms.zip");
-            string mmsExtractedDir = Path.Combine(_assetsPath ?? @"C:\Assets", "mms");
-
+            string? mmsZip = await EnsureAssetAsync("mms.zip");
+            string mmsExtractedDir = Path.Combine(GlobalTempRoot, "mms");
             if (!string.IsNullOrEmpty(mmsZip) && File.Exists(mmsZip) && !Directory.Exists(mmsExtractedDir))
             {
                 Log("   [INIT] Extracting mms.zip...");
@@ -46,17 +44,15 @@ namespace PGInstaller.Viewmodel
                     Log($"   [ERROR] Failed to extract mms.zip: {ex.Message}");
                 }
             }
-            string relativeMsi = @"mms\image64a\cwbinstall.msi";
-            string? fullMstPath = ResolveAssetPath(@"mms\image64a\1033.mst") ?? Path.Combine(_assetsPath ?? @"C:\Assets", @"mms\image64a\1033.mst");
+
+            string relativeMsi = Path.Combine(mmsExtractedDir, @"image64a\cwbinstall.msi");
+            string fullMstPath = Path.Combine(mmsExtractedDir, @"image64a\1033.mst");
             string msiArgs = $"TRANSFORMS=\"{fullMstPath}\" /qn /norestart";
-
             await SmartInstall("IBM i Access 7.1", relativeMsi, msiArgs, checkAppName);
-
             string mmsFileName = "MMS.ws";
-            string? mmsSource = ResolveAssetPath(mmsFileName);
+            string? mmsSource = await EnsureAssetAsync(mmsFileName);
             string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
             string mmsDest = Path.Combine(publicDesktop, mmsFileName);
-
             if (!string.IsNullOrEmpty(mmsSource) && File.Exists(mmsSource) && !File.Exists(mmsDest))
             {
                 try
@@ -69,10 +65,10 @@ namespace PGInstaller.Viewmodel
                     Log($"   [ERROR] Failed to copy {mmsFileName}: {ex.Message}");
                 }
             }
-            string kmpFileName = "AS400.KMP";
-            string? kmpSource = ResolveAssetPath(kmpFileName);
-            string kmpDest = @"C:\AS400.KMP";
 
+            string kmpFileName = "AS400.KMP";
+            string? kmpSource = await EnsureAssetAsync(kmpFileName);
+            string kmpDest = @"C:\AS400.KMP";
             if (!string.IsNullOrEmpty(kmpSource) && File.Exists(kmpSource))
             {
                 try
@@ -86,17 +82,15 @@ namespace PGInstaller.Viewmodel
                 }
             }
         }
+
         private async Task ApplyRadminServer()
         {
-            string? installBatPath = ResolveAssetPath("install.bat");
+            string? installBatPath = await EnsureAssetAsync("install.bat");
             if (!string.IsNullOrEmpty(installBatPath) && File.Exists(installBatPath))
             {
-                string? dll1 = ResolveAssetPath("newtstop.dll");
-                string? dll2 = ResolveAssetPath("nts64helper.dll");
-                if (
-                    !string.IsNullOrEmpty(dll1) && File.Exists(dll1)
-                    && !string.IsNullOrEmpty(dll2) && File.Exists(dll2)
-                )
+                string? dll1 = await EnsureAssetAsync("newtstop.dll");
+                string? dll2 = await EnsureAssetAsync("nts64helper.dll");
+                if (!string.IsNullOrEmpty(dll1) && File.Exists(dll1) && !string.IsNullOrEmpty(dll2) && File.Exists(dll2))
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -119,19 +113,18 @@ namespace PGInstaller.Viewmodel
             {
                 Log("   [WARNING] install.bat not found in Assets.");
             }
+
             IncrementProgress();
         }
 
         private async Task InstallInventoryTools()
         {
             string zipName = "inventorytools.zip";
-            string? zipPath = ResolveAssetPath(zipName);
+            string? zipPath = await EnsureAssetAsync(zipName);
             string targetDir = @"C:\wamp64\www\puregold";
-
             if (!string.IsNullOrEmpty(zipPath) && File.Exists(zipPath))
             {
                 Log($"   [DEPLOY] Deploying {zipName}...");
-
                 try
                 {
                     if (!Directory.Exists(targetDir))
@@ -140,7 +133,6 @@ namespace PGInstaller.Viewmodel
                     }
 
                     await ExtractWithProgress(zipPath, targetDir, CreateStepProgress("Extracting Inventory Tools"), overwrite: true);
-
                     Log("   [SUCCESS] Inventory Tools deployed.");
                 }
                 catch (Exception ex)
@@ -152,13 +144,13 @@ namespace PGInstaller.Viewmodel
             {
                 Log($"   [WARN] {zipName} not found in Assets.");
             }
+
             IncrementProgress();
         }
 
         private async Task ClearTaskbar()
         {
             Log("   [CONFIG] Clearing existing Taskbar pins...");
-
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband", true);
@@ -167,19 +159,24 @@ namespace PGInstaller.Viewmodel
                     key.DeleteValue("Favorites", false);
                     key.DeleteValue("FavoritesResolve", false);
                     key.SetValue("FavoritesVersion", 3, RegistryValueKind.DWord);
-
                     int changes = 0;
-                    if (key.GetValue("FavoritesChanges") is int currentChanges) changes = currentChanges;
+                    if (key.GetValue("FavoritesChanges")is int currentChanges)
+                        changes = currentChanges;
                     key.SetValue("FavoritesChanges", changes + 1, RegistryValueKind.DWord);
                 }
-                string taskBarDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
 
+                string taskBarDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
                 if (Directory.Exists(taskBarDir))
                 {
                     foreach (var file in Directory.GetFiles(taskBarDir, "*.lnk"))
                     {
-                        try { File.Delete(file); } catch { }
+                        try
+                        {
+                            File.Delete(file);
+                        }
+                        catch
+                        {
+                        }
                     }
                 }
 
@@ -187,7 +184,7 @@ namespace PGInstaller.Viewmodel
             }
             catch (Exception ex)
             {
-                Log($"   [WARN] Failed to clear Taskbar: {ex.Message}");
+                Log($"   [ERROR] Failed to clear Taskbar: {ex.Message}");
             }
 
             await Task.CompletedTask;
@@ -195,17 +192,8 @@ namespace PGInstaller.Viewmodel
 
         private async Task PinToTaskbar(string appName, string exeName)
         {
-            string[] searchPaths = [
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
-        Environment.GetFolderPath(Environment.SpecialFolder.Programs),
-        Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-        @"C:\Program Files\Google\Chrome\Application",
-        @"C:\Program Files\Mozilla Firefox",
-        @"C:\Program Files\Mozilla Thunderbird"
-            ];
-
+            string[] searchPaths = [Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Environment.GetFolderPath(Environment.SpecialFolder.Programs), Environment.GetFolderPath(Environment.SpecialFolder.Windows), @"C:\Program Files\Google\Chrome\Application", @"C:\Program Files\Mozilla Firefox", @"C:\Program Files\Mozilla Thunderbird"];
             string? targetPath = null;
-
             if (appName.Equals("File Explorer", StringComparison.OrdinalIgnoreCase))
             {
                 targetPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
@@ -218,20 +206,17 @@ namespace PGInstaller.Viewmodel
                     {
                         try
                         {
-                            var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories)
-                                .Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
-
-                            var match = files.FirstOrDefault(f =>
-                                Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) ||
-                                Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
-
+                            var files = Directory.GetFiles(dir, "*.lnk", SearchOption.AllDirectories).Concat(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
+                            var match = files.FirstOrDefault(f => Path.GetFileName(f).Equals(exeName, StringComparison.OrdinalIgnoreCase) || Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
                             if (match != null)
                             {
                                 targetPath = match;
                                 break;
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
             }
@@ -239,12 +224,10 @@ namespace PGInstaller.Viewmodel
             if (targetPath != null)
             {
                 Log($"   [CONFIG] Pinning {appName} to Taskbar...");
-                string? scriptPath = ResolveAssetPath("Pin-Taskbar.ps1");
-
+                string? scriptPath = await EnsureAssetAsync("Pin-Taskbar.ps1");
                 if (!string.IsNullOrEmpty(scriptPath) && File.Exists(scriptPath))
                 {
                     string safePath = targetPath.Replace("'", "''");
-
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
@@ -254,16 +237,14 @@ namespace PGInstaller.Viewmodel
                         RedirectStandardOutput = true,
                         RedirectStandardError = true
                     };
-
                     bool success = await RunCustomProcess(startInfo, $"Pinning {appName}", true);
-
                     if (success)
                     {
                         Log($"   [SUCCESS] Pinned {appName} to Taskbar.");
                     }
                     else
                     {
-                        Log($"   [WARN] Pinning script reported failure for {appName}.");
+                        Log($"   [ERROR] Pinning script reported failure for {appName}.");
                     }
                 }
                 else
@@ -276,11 +257,11 @@ namespace PGInstaller.Viewmodel
                 Log($"   [WARN] Could not find {appName} ({exeName}) to pin.");
             }
         }
+
         private async Task InstallAVGW()
         {
             Log("------------------------------------------------");
             Log("   [INIT] Installing Annual & Variance Gateway (A&VGW)...");
-
             string targetExe = @"C:\Program Files (x86)\Annual & Variance Gateway\Annual And Variance Gateway.exe";
             if (!File.Exists(targetExe))
             {
@@ -293,7 +274,6 @@ namespace PGInstaller.Viewmodel
 
             bool isForceInstall = IsForceInstall("A&VGW", "Annual & Variance Gateway");
             bool isInstalled = IsAppInstalled("A&VGW") || IsAppInstalled("Annual & Variance Gateway") || File.Exists(targetExe);
-
             if (!isForceInstall && isInstalled)
             {
                 Log("   [SKIP] Annual & Variance Gateway (A&VGW) is already installed.");
@@ -304,8 +284,7 @@ namespace PGInstaller.Viewmodel
             }
 
             string exeName = "A&VGWSetup.exe";
-            string? installerPath = ResolveAssetPath(exeName);
-
+            string? installerPath = await EnsureAssetAsync(exeName);
             if (string.IsNullOrEmpty(installerPath) || !File.Exists(installerPath))
             {
                 Log($"   [ERROR] {exeName} not found in Assets.");
@@ -316,28 +295,24 @@ namespace PGInstaller.Viewmodel
 
             if (string.IsNullOrEmpty(_sharedDatabaseIp))
             {
-                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter Database IP / Host for A&VGW:", "192.92.1.100")
-                );
+                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter Database IP / Host for A&VGW:", "192.92.1.100"));
             }
 
-            string storeNum = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Default Store Number for A&VGW:", "722")
-            );
-
-            string fallbackStore = await Application.Current.Dispatcher.InvokeAsync(() =>
-                ShowInputDialog("Enter Fallback Store Name for A&VGW:", "PUREGOLD SAN FERNANDO")
-            );
-
+            string storeNum = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter Default Store Number for A&VGW:", "722"));
+            string fallbackStore = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter Fallback Store Name for A&VGW:", "PUREGOLD SAN FERNANDO"));
             Log("   [INSTALL] Installing Annual & Variance Gateway silently...");
             bool success = await RunProcessAsync(installerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "Installing A&VGW");
             RecordInstallResult("A&VGW", success);
-
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             string? configPath = null;
+            foreach (var dir in new[]
+            {
+                progFiles,
+                progFilesX86
+            }
 
-            foreach (var dir in new[] { progFiles, progFilesX86 })
+            )
             {
                 string targetDir = Path.Combine(dir, "Annual & Variance Gateway");
                 if (Directory.Exists(targetDir))
@@ -351,13 +326,11 @@ namespace PGInstaller.Viewmodel
             {
                 try
                 {
-                    string json = File.ReadAllText(configPath);
-
-                    json = Regex.Replace(json, @"""DbHost""\s*:\s*""[^""]*""", $"\"DbHost\": \"{_sharedDatabaseIp}\"");
-                    json = Regex.Replace(json, @"""DefaultStoreNum""\s*:\s*""[^""]*""", $"\"DefaultStoreNum\": \"{storeNum}\"");
-                    json = Regex.Replace(json, @"""FallbackStoreName""\s*:\s*""[^""]*""", $"\"FallbackStoreName\": \"{fallbackStore}\"");
-
-                    File.WriteAllText(configPath, json);
+                    var config = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(configPath))?.AsObject() ?? throw new InvalidDataException("A&VGW configuration must be a JSON object.");
+                    config["DbHost"] = _sharedDatabaseIp;
+                    config["DefaultStoreNum"] = storeNum;
+                    config["FallbackStoreName"] = fallbackStore;
+                    File.WriteAllText(configPath, config.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
                     Log("   [SUCCESS] A&VGW config.json updated with custom settings.");
                 }
                 catch (Exception ex)
@@ -387,7 +360,6 @@ namespace PGInstaller.Viewmodel
         {
             Log("------------------------------------------------");
             Log("   [INIT] Installing Puregold IT Toolkit (PITK)...");
-
             string targetExe = @"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe";
             if (!File.Exists(targetExe))
             {
@@ -400,7 +372,6 @@ namespace PGInstaller.Viewmodel
 
             bool isForceInstall = IsForceInstall("PITK", "Puregold IT Toolkit");
             bool isInstalled = IsAppInstalled("PITK") || IsAppInstalled("Puregold IT Toolkit") || File.Exists(targetExe);
-
             if (!isForceInstall && isInstalled)
             {
                 Log("   [SKIP] Puregold IT Toolkit (PITK) is already installed.");
@@ -411,7 +382,7 @@ namespace PGInstaller.Viewmodel
             }
 
             string installerExe = "PITK Setup.exe";
-            string? resolved = ResolveAssetPath(installerExe);
+            string? resolved = await EnsureAssetAsync(installerExe);
             if (string.IsNullOrEmpty(resolved) || !File.Exists(resolved))
             {
                 if (ResolveAssetPath("pitk.exe") != null)
@@ -420,7 +391,7 @@ namespace PGInstaller.Viewmodel
                 }
             }
 
-            string? installerPath = ResolveAssetPath(installerExe);
+            string? installerPath = await EnsureAssetAsync(installerExe);
             bool success = false;
             if (!string.IsNullOrEmpty(installerPath) && File.Exists(installerPath))
             {
@@ -432,7 +403,6 @@ namespace PGInstaller.Viewmodel
             }
 
             RecordInstallResult("PITK", success);
-
             if (File.Exists(@"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe"))
             {
                 targetExe = @"C:\Program Files (x86)\Puregold IT Toolkit\PuregoldITToolkit.exe";
@@ -448,9 +418,9 @@ namespace PGInstaller.Viewmodel
 
         private async Task InstallWampServer()
         {
-            if (!File.Exists(@"C:\wamp64\wampmanager.exe"))
+            if (IsForceInstall("Wampserver 3.4.0") || !File.Exists(@"C:\wamp64\wampmanager.exe"))
             {
-                await SmartInstall("WampServer 3.4", "wampserver.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
+                await SmartInstall("Wampserver 3.4.0", "wampserver.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
             }
             else
             {
@@ -458,27 +428,19 @@ namespace PGInstaller.Viewmodel
             }
 
             Log("   [CONFIG] Configuring WampServer Environment...");
-
             string wampBase = @"C:\wamp64";
-
             if (Directory.Exists(wampBase))
             {
                 try
                 {
-
                     string apacheRoot = Path.Combine(wampBase, @"bin\apache");
-                    string? apacheVerDir = Directory.Exists(apacheRoot)
-                    ? Directory.GetDirectories(apacheRoot)
-                        .FirstOrDefault(d => Path.GetFileName(d).StartsWith("apache"))
-                    : null;
-
+                    string? apacheVerDir = Directory.Exists(apacheRoot) ? Directory.GetDirectories(apacheRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("apache")) : null;
                     if (apacheVerDir != null)
                     {
                         string vhostPath = Path.Combine(apacheVerDir, @"conf\extra\httpd-vhosts.conf");
                         if (File.Exists(vhostPath))
                         {
                             string newVhostConfig = @"
-Virtual Hosts
 <VirtualHost _default_:80>
 ServerName localhost
 ServerAlias localhost
@@ -495,23 +457,18 @@ Require all granted
                     }
 
                     string phpRoot = Path.Combine(wampBase, @"bin\php");
-                    string? phpVerDir = Directory.Exists(phpRoot)
-                        ? Directory.GetDirectories(phpRoot)
-                            .FirstOrDefault(d => Path.GetFileName(d).StartsWith("php8.3"))
-                        : null;
-
+                    string? phpVerDir = Directory.Exists(phpRoot) ? Directory.GetDirectories(phpRoot).FirstOrDefault(d => Path.GetFileName(d).StartsWith("php8.3")) : null;
                     if (phpVerDir != null)
                     {
                         string extDir = Path.Combine(phpVerDir, "ext");
                         string dll1 = "php_sqlsrv_83_ts_x64.dll";
                         string dll2 = "php_pdo_sqlsrv_83_ts_x64.dll";
-
-                        string? sourceDll1 = ResolveAssetPath(dll1);
-                        string? sourceDll2 = ResolveAssetPath(dll2);
-
-                        if (!string.IsNullOrEmpty(sourceDll1) && File.Exists(sourceDll1)) File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
-                        if (!string.IsNullOrEmpty(sourceDll2) && File.Exists(sourceDll2)) File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
-
+                        string? sourceDll1 = await EnsureAssetAsync(dll1);
+                        string? sourceDll2 = await EnsureAssetAsync(dll2);
+                        if (!string.IsNullOrEmpty(sourceDll1) && File.Exists(sourceDll1))
+                            File.Copy(sourceDll1, Path.Combine(extDir, dll1), true);
+                        if (!string.IsNullOrEmpty(sourceDll2) && File.Exists(sourceDll2))
+                            File.Copy(sourceDll2, Path.Combine(extDir, dll2), true);
                         string iniPath = Path.Combine(phpVerDir, "phpForApache.ini");
                         if (File.Exists(iniPath))
                         {
@@ -531,11 +488,7 @@ Require all granted
                     if (File.Exists(wampExe))
                     {
                         Log("   [START] Starting WampServer...");
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = wampExe,
-                            UseShellExecute = true,
-                        });
+                        Process.Start(new ProcessStartInfo { FileName = wampExe, UseShellExecute = true, });
                     }
                 }
                 catch (Exception ex)
@@ -543,29 +496,34 @@ Require all granted
                     Log($"   [ERROR] Wamp Config Failed: {ex.Message}");
                 }
             }
+
             IncrementProgress();
         }
 
         private async Task PasteVARIANCE()
         {
-            string? varianceZip = ResolveAssetPath("variance.zip");
+            string? varianceZip = await EnsureAssetAsync("variance.zip");
             string targetDir = @"C:\wamp64\www\puregold";
-
             if (!string.IsNullOrEmpty(varianceZip) && File.Exists(varianceZip))
             {
                 Log("   [DEPLOY] Unzipping Variance System...");
                 try
                 {
-                    if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                    if (!Directory.Exists(targetDir))
+                        Directory.CreateDirectory(targetDir);
                     await ExtractWithProgress(varianceZip, targetDir, CreateStepProgress("Extracting Variance"), overwrite: true);
                     Log("   [SUCCESS] Variance deployed to www/puregold.");
                 }
-                catch (Exception ex) { Log($"   [ERROR] Variance Deploy failed: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Variance Deploy failed: {ex.Message}");
+                }
             }
             else
             {
                 Log("   [WARN] variance.zip not found in Assets.");
             }
+
             IncrementProgress();
         }
 
@@ -579,7 +537,10 @@ Require all granted
                     return true;
                 }
             }
-            catch { }
+            catch
+            {
+            }
+
             return false;
         }
 
@@ -589,32 +550,32 @@ Require all granted
             {
                 var osVersion = Environment.OSVersion.Version;
                 int build = osVersion.Build;
-
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
                 string productName = key?.GetValue("ProductName")?.ToString() ?? "";
                 bool isServer = productName.Contains("Server", StringComparison.OrdinalIgnoreCase);
-
                 if (isServer)
                 {
-                    if (build >= 26100) return "Win11 24h2";
-                    if (build >= 20348) return "Win10 21h2";
-                    if (build >= 17763) return "Win10 1809";
-                    if (build >= 14393) return "Win10 1607";
+                    if (build >= 26100)
+                        return "Win11 24h2";
+                    if (build >= 20348)
+                        return "Win10 21h2";
+                    if (build >= 17763)
+                        return "Win10 1809";
+                    if (build >= 14393)
+                        return "Win10 1607";
                 }
                 else
                 {
-                    string releaseId =
-                        key?.GetValue("DisplayVersion")?.ToString() ??
-                        key?.GetValue("ReleaseId")?.ToString() ??
-                        "";
-
+                    string releaseId = key?.GetValue("DisplayVersion")?.ToString() ?? key?.GetValue("ReleaseId")?.ToString() ?? "";
                     string osLabel = (build >= 22000) ? "Win11" : "Win10";
                     if (!string.IsNullOrEmpty(releaseId))
                     {
                         return $"{osLabel} {releaseId.ToLower()}";
                     }
+
                     return osLabel;
                 }
+
                 return (build >= 22000) ? "Win11" : "Win10";
             }
             catch (Exception ex)
@@ -627,7 +588,6 @@ Require all granted
         private async Task InstallNetFx3()
         {
             Log("   [INIT] Checking .NET Framework 3.5 status...");
-
             if (IsNetFx3Installed())
             {
                 Log("   [INFO] .NET Framework 3.5 is already installed on this machine.");
@@ -636,9 +596,8 @@ Require all granted
             }
 
             Log("   [INIT] Starting Offline .NET 3.5 Installation...");
-            string? netfxZip = ResolveAssetPath("netfx.zip");
-            string netfxExtractDir = @"C:\Assets\NetFX3_Source";
-
+            string? netfxZip = await EnsureAssetAsync("netfx.zip");
+            string netfxExtractDir = Path.Combine(GlobalTempRoot, "NetFX3_Source");
             if (string.IsNullOrEmpty(netfxZip) || !File.Exists(netfxZip))
             {
                 await ExtractSpecificFile(null, "*netfx*");
@@ -682,8 +641,7 @@ Require all granted
                     }
                     else
                     {
-                        sourcePath = Directory.GetDirectories(netfxExtractDir, "*sxs*", SearchOption.AllDirectories).FirstOrDefault()
-                                     ?? Directory.GetDirectories(netfxExtractDir).FirstOrDefault();
+                        sourcePath = Directory.GetDirectories(netfxExtractDir, "*sxs*", SearchOption.AllDirectories).FirstOrDefault() ?? Directory.GetDirectories(netfxExtractDir).FirstOrDefault();
                     }
                 }
 
@@ -694,34 +652,20 @@ Require all granted
             }
 
             bool success = false;
-
-            // 1. Try offline DISM with source
             if (!string.IsNullOrEmpty(sourcePath) && Directory.Exists(sourcePath))
             {
                 Log($"   [INSTALL] Installing from offline source: {Path.GetFileName(sourcePath)}");
-                success = await RunProcessAsync(
-                    "dism",
-                    $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart",
-                    "Enabling .NET 3.5 (Offline)"
-                );
-
+                success = await RunProcessAsync("dism", $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /LimitAccess /NoRestart", "Enabling .NET 3.5 (Offline)");
                 if (!success)
                 {
                     Log("   [RETRY] Retrying offline source without LimitAccess...");
-                    success = await RunProcessAsync(
-                        "dism",
-                        $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /NoRestart",
-                        "Enabling .NET 3.5 (Offline Fallback)"
-                    );
+                    success = await RunProcessAsync("dism", $"/Online /Enable-Feature /FeatureName:NetFx3 /All /Source:\"{sourcePath}\" /NoRestart", "Enabling .NET 3.5 (Offline Fallback)");
                 }
             }
 
-            // 2. Direct CAB package fallback if present
             if (!success)
             {
-                string? standaloneCab = ResolveAssetPath("netfx3.cab")
-                    ?? (Directory.Exists(netfxExtractDir) ? Directory.GetFiles(netfxExtractDir, "*netfx3*.cab", SearchOption.AllDirectories).FirstOrDefault() : null);
-
+                string? standaloneCab = await EnsureAssetAsync("netfx3.cab") ?? (Directory.Exists(netfxExtractDir) ? Directory.GetFiles(netfxExtractDir, "*netfx3*.cab", SearchOption.AllDirectories).FirstOrDefault() : null);
                 if (!string.IsNullOrEmpty(standaloneCab) && File.Exists(standaloneCab))
                 {
                     Log($"   [FALLBACK] Installing direct CAB package: {Path.GetFileName(standaloneCab)}...");
@@ -729,14 +673,12 @@ Require all granted
                 }
             }
 
-            // 3. Online DISM enable fallback
             if (!success && !IsNetFx3Installed())
             {
                 Log("   [FALLBACK] Attempting Windows DISM online feature enable...");
                 success = await RunProcessAsync("dism", "/Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart", "Enabling .NET 3.5 (Online)");
             }
 
-            // 4. PowerShell fallback
             if (!success && !IsNetFx3Installed())
             {
                 Log("   [FALLBACK] Attempting PowerShell Enable-WindowsOptionalFeature...");
@@ -758,10 +700,8 @@ Require all granted
         private async Task InstallPIMS()
         {
             await InstallNetFx3();
-
-            string? pimsZip = ResolveAssetPath("pims.zip");
-            string pimsRoot = @"C:\Assets\PG_PIMS_Install";
-
+            string? pimsZip = await EnsureAssetAsync("pims.zip");
+            string pimsRoot = Path.Combine(GlobalTempRoot, "PIMS");
             if (string.IsNullOrEmpty(pimsZip) || !File.Exists(pimsZip))
             {
                 Log("   [ERROR] pims.zip not found in Assets.");
@@ -789,6 +729,7 @@ Require all granted
                 {
                     sessionMgr?.DeleteValue("PendingFileRenameOperations", false);
                 }
+
                 using var wu = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", true);
                 wu?.DeleteSubKey("RebootRequired", false);
             }
@@ -799,7 +740,6 @@ Require all granted
 
             string crDir = Path.Combine(pimsRoot, "CR10");
             string crMsi = Path.Combine(crDir, "scrent.msi");
-
             if (VerifyFile(crMsi))
             {
                 string crKey = "AV860-010S000-00000YV";
@@ -833,10 +773,7 @@ Require all granted
             }
 
             string sqlDir = Path.Combine(pimsRoot, "SQLServer2005");
-            string sqlMsi = Environment.Is64BitOperatingSystem
-                ? Path.Combine(sqlDir, "SQLServer2005_BC_x64.msi")
-                : Path.Combine(sqlDir, "SQLServer2005_BC.msi");
-
+            string sqlMsi = Environment.Is64BitOperatingSystem ? Path.Combine(sqlDir, "SQLServer2005_BC_x64.msi") : Path.Combine(sqlDir, "SQLServer2005_BC.msi");
             if (VerifyFile(sqlMsi))
             {
                 await RunProcessAsync("msiexec.exe", $"/i \"{sqlMsi}\" ALLUSERS=1 /qn /norestart", "Installing SQL Server 2005 BC");
@@ -844,7 +781,6 @@ Require all granted
 
             string fmsSource = Path.Combine(pimsRoot, "FMS");
             string fmsDest = @"C:\FMS";
-
             if (Directory.Exists(fmsSource))
             {
                 Log("   [COPY] Deploying FMS to C:\\FMS...");
@@ -866,12 +802,9 @@ Require all granted
             }
 
             Log("   [CONFIG] Requesting Server IP Address...");
-
             if (string.IsNullOrEmpty(_sharedDatabaseIp))
             {
-                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter Server IP Address config for FIDB, FIHO (PIMS), and A&VGW:", "192.92.1.100")
-                );
+                _sharedDatabaseIp = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter Server IP Address config for FIDB, FIHO (PIMS), and A&VGW:", "192.92.1.100"));
             }
 
             if (!string.IsNullOrWhiteSpace(_sharedDatabaseIp))
@@ -901,7 +834,6 @@ Require all granted
                 return true;
             Log($"   [ERROR] Missing file: {Path.GetFileName(path)}");
             return false;
-
         }
 
         private async Task CopyDirectoryAsync(string sourceDir, string targetDir)
@@ -912,17 +844,16 @@ Require all granted
                 {
                     Directory.CreateDirectory(targetDir);
                     string sourceDirClean = sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
                     foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
                     {
                         string relativePath = file[sourceDirClean.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                         string destPath = Path.Combine(targetDir, relativePath);
-
                         string destDirPath = Path.GetDirectoryName(destPath)!;
                         if (!string.IsNullOrEmpty(destDirPath))
                         {
                             Directory.CreateDirectory(destDirPath);
                         }
+
                         File.Copy(file, destPath, true);
                     }
                 });
@@ -937,7 +868,6 @@ Require all granted
         private void ConfigurePimsRegistry(string softwareKey, string ip)
         {
             string baseKey = $@"SOFTWARE\{softwareKey}\Config";
-
             using var key = Registry.LocalMachine.CreateSubKey(baseKey);
             if (key != null)
             {
@@ -954,20 +884,24 @@ Require all granted
         {
             var dialog = new InputDialog(question, defaultAnswer)
             {
-                Owner = Application.Current.MainWindow 
+                Owner = Application.Current.MainWindow
             };
-
             bool? result = dialog.ShowDialog();
             return result == true ? dialog.Answer : "";
         }
 
         private async Task InstallFSDM()
         {
-            string? fsdmZip = ResolveAssetPath("FSDM.zip");
-            string tempFsdmRoot = @"C:\Assets\PG_FSDM_Install";
-
+            string? fsdmZip = await EnsureAssetAsync("FSDM.zip");
+            string tempFsdmRoot = Path.Combine(GlobalTempRoot, "FSDM");
             if (Directory.Exists(tempFsdmRoot))
-                try { Directory.Delete(tempFsdmRoot, true); } catch { }
+                try
+                {
+                    Directory.Delete(tempFsdmRoot, true);
+                }
+                catch
+                {
+                }
 
             if (string.IsNullOrEmpty(fsdmZip) || !File.Exists(fsdmZip))
             {
@@ -981,34 +915,44 @@ Require all granted
                 Directory.CreateDirectory(tempFsdmRoot);
                 await ExtractWithProgress(fsdmZip, tempFsdmRoot, CreateStepProgress("Extracting FSDM"));
             }
-            catch (Exception ex) { Log($"   [ERROR] Extraction failed: {ex.Message}"); return; }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Extraction failed: {ex.Message}");
+                return;
+            }
 
+            string officeMsi = Path.Combine(tempFsdmRoot, "openoffice", "openoffice401.msi");
+            string officeCab = Path.Combine(tempFsdmRoot, "openoffice", "openoffice1.cab");
+            if (!File.Exists(officeMsi) || !File.Exists(officeCab))
+                throw new FileNotFoundException("FSDM is missing the OpenOffice MSI or CAB file.");
+            if (!IsAppInstalled("OpenOffice") && !await RunProcessAsync("msiexec.exe", $"/i \"{officeMsi}\" /qn /norestart ALLUSERS=1", "Installing OpenOffice for FSDM"))
+                throw new InvalidOperationException("OpenOffice installation failed.");
             string ssce86 = Path.Combine(tempFsdmRoot, "SSCERuntime_x86-ENU.msi");
             string ssce64 = Path.Combine(tempFsdmRoot, "SSCERuntime_x64-ENU.msi");
-
             if (File.Exists(ssce86))
-                await RunProcessAsync("msiexec.exe", $"/i \"{ssce86}\" /quiet", "Installing SSCE Runtime x86");
-
-            if (File.Exists(ssce64))
-                await RunProcessAsync("msiexec.exe", $"/i \"{ssce64}\" /quiet", "Installing SSCE Runtime x64");
-
+                await RunProcessAsync("msiexec.exe", $"/i \"{ssce86}\" /qn /norestart", "Installing SSCE Runtime x86");
+            if (Environment.Is64BitOperatingSystem && File.Exists(ssce64))
+                await RunProcessAsync("msiexec.exe", $"/i \"{ssce64}\" /qn /norestart", "Installing SSCE Runtime x64");
             string fsDevZip = Path.Combine(tempFsdmRoot, "FSDevMan.zip");
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string fsDestDir = Path.Combine(progFiles, "FSDevMan");
-
+            if (!File.Exists(fsDevZip))
+                throw new FileNotFoundException("FSDevMan.zip is missing from FSDM.");
             if (File.Exists(fsDevZip))
             {
                 Log("   [EXTRACT] Installing FSDevMan to Program Files...");
-                if (!Directory.Exists(fsDestDir)) Directory.CreateDirectory(fsDestDir);
-
+                if (!Directory.Exists(fsDestDir))
+                    Directory.CreateDirectory(fsDestDir);
                 try
                 {
                     await ExtractWithProgress(fsDevZip, fsDestDir, CreateStepProgress("Extracting FSDevMan"));
                 }
-                catch (Exception ex) { Log($"   [WARN] FSDevMan extract issue: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    Log($"   [WARN] FSDevMan extract issue: {ex.Message}");
+                }
 
                 string exePath = Path.Combine(fsDestDir, "FSDeviceManager.exe");
-
                 if (File.Exists(exePath))
                 {
                     await CreateAllUsersShortcut("FSDM", exePath, fsDestDir);
@@ -1035,7 +979,8 @@ Require all granted
 
             string sdkZip = Path.Combine(tempFsdmRoot, "SDK.zip");
             string sdkTempDir = Path.Combine(tempFsdmRoot, "SDK_Temp");
-
+            if (!File.Exists(sdkZip))
+                throw new FileNotFoundException("SDK.zip is missing from FSDM.");
             if (File.Exists(sdkZip))
             {
                 Log("   [EXTRACT] Preparing SDK Installer...");
@@ -1043,9 +988,7 @@ Require all granted
                 {
                     Directory.CreateDirectory(sdkTempDir);
                     await ExtractWithProgress(sdkZip, sdkTempDir, CreateStepProgress("Extracting SDK"));
-
                     string regBat = Path.Combine(sdkTempDir, "Register_SDK_x64.bat");
-
                     if (File.Exists(regBat))
                     {
                         var startInfo = new ProcessStartInfo
@@ -1058,7 +1001,6 @@ Require all granted
                             RedirectStandardOutput = true,
                             RedirectStandardError = true
                         };
-
                         await RunCustomProcess(startInfo, "Registering SDK (Copying to System32)");
                     }
                     else
@@ -1066,12 +1008,14 @@ Require all granted
                         Log("   [ERROR] Register_SDK_x64.bat not found in SDK zip.");
                     }
                 }
-                catch (Exception ex) { Log($"   [ERROR] SDK Installation failed: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] SDK Installation failed: {ex.Message}");
+                }
             }
 
             string dbUpdater = "FSDM Database Updater.exe";
             string dbSource = Path.Combine(tempFsdmRoot, dbUpdater);
-
             if (File.Exists(dbSource))
             {
                 string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
@@ -1081,31 +1025,29 @@ Require all granted
                     File.Copy(dbSource, dbDest, true);
                     Log("   [COPY] FSDM Database Updater copied to Desktop.");
                 }
-                catch (Exception ex) { Log($"   [ERROR] Failed copy updater: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    Log($"   [ERROR] Failed copy updater: {ex.Message}");
+                }
             }
+
             IncrementProgress();
         }
 
         private async Task InstallCorelPSIllu(IEnumerable<string> selectedApps)
         {
             await InstallNetFx3();
-
-
             bool installX5 = selectedApps.Contains("Coreldraw Graphics X5");
             bool installX7 = selectedApps.Contains("Coreldraw Graphics X7");
-
             if (installX5)
             {
                 string corelX5Exe = "crdx5.exe";
-                string? corelX5Path = ResolveAssetPath(corelX5Exe);
-
+                string? corelX5Path = await EnsureAssetAsync(corelX5Exe);
                 if (!string.IsNullOrEmpty(corelX5Path) && File.Exists(corelX5Path))
                 {
                     await RunProcessAsync(corelX5Path, "", "Launching CorelDRAW X5 Installer");
-
                     string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
                     string installedPathX5 = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X5\Programs\CorelDRW.exe");
-
                     if (!File.Exists(installedPathX5))
                     {
                         string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -1131,15 +1073,12 @@ Require all granted
             if (installX7)
             {
                 string corelX7Exe = "crdx7.exe";
-                string? corelX7Path = ResolveAssetPath(corelX7Exe);
-
+                string? corelX7Path = await EnsureAssetAsync(corelX7Exe);
                 if (!string.IsNullOrEmpty(corelX7Path) && File.Exists(corelX7Path))
                 {
                     await RunProcessAsync(corelX7Path, "", "Launching CorelDRAW X7 Installer");
-
                     string prog86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
                     string installedPathX7 = Path.Combine(prog86, @"Corel\CorelDRAW Graphics Suite X7\Programs\CorelDRW.exe");
-
                     if (!File.Exists(installedPathX7))
                     {
                         string prog64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -1163,13 +1102,11 @@ Require all granted
             }
 
             string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string? illuZip = ResolveAssetPath("illucs6.zip");
-
+            string? illuZip = await EnsureAssetAsync("illucs6.zip");
             if (!string.IsNullOrEmpty(illuZip) && File.Exists(illuZip))
             {
                 string destDir = Path.Combine(progFiles, "IllustratorCS6Portable");
                 string exePath = Path.Combine(destDir, "IllustratorCS6Portable.exe");
-
                 if (!Directory.Exists(destDir))
                 {
                     Log("   [EXTRACT] Unzipping Illustrator CS6 to Program Files...");
@@ -1195,13 +1132,11 @@ Require all granted
                 Log("   [SKIP] illucs6.zip not found.");
             }
 
-            string? psZip = ResolveAssetPath("pscs6.zip");
-
+            string? psZip = await EnsureAssetAsync("pscs6.zip");
             if (!string.IsNullOrEmpty(psZip) && File.Exists(psZip))
             {
                 string destDir = Path.Combine(progFiles, "PhotoshopCS6Portable");
                 string exePath = Path.Combine(destDir, "PhotoshopCS6Portable.exe");
-
                 if (!Directory.Exists(destDir))
                 {
                     Log("   [EXTRACT] Unzipping Photoshop CS6 to Program Files...");
@@ -1243,31 +1178,21 @@ Require all granted
                 string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
                 string publicLnk = Path.Combine(publicDesktop, $"{linkName}.lnk");
                 string userLnk = Path.Combine(userDesktop, $"{linkName}.lnk");
-
                 string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "PG Store Apps");
                 if (!Directory.Exists(publicStartMenu))
                 {
                     Directory.CreateDirectory(publicStartMenu);
                 }
+
                 string startMenuLnk = Path.Combine(publicStartMenu, $"{linkName}.lnk");
-
                 Log($"   [SHORTCUT] Creating desktop shortcut for '{linkName}'...");
-
                 string cleanTarget = (targetExePath ?? "").Replace("'", "''");
                 string cleanWorkDir = (workingDir ?? "").Replace("'", "''");
                 string workDirSnippet = string.IsNullOrEmpty(cleanWorkDir) ? "" : $"$s.WorkingDirectory = '{cleanWorkDir}';";
                 string workDirSnippet2 = string.IsNullOrEmpty(cleanWorkDir) ? "" : $"$s2.WorkingDirectory = '{cleanWorkDir}';";
-
-                string script = $"$ws = New-Object -ComObject WScript.Shell; " +
-                                $"$s = $ws.CreateShortcut('{publicLnk.Replace("'", "''")}'); " +
-                                $"$s.TargetPath = '{cleanTarget}'; {workDirSnippet} $s.Save(); " +
-                                $"$s2 = $ws.CreateShortcut('{startMenuLnk.Replace("'", "''")}'); " +
-                                $"$s2.TargetPath = '{cleanTarget}'; {workDirSnippet2} $s2.Save();";
-
-                await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", $"Creating Shortcut: {linkName}", true);
-
+                string script = $"$ws = New-Object -ComObject WScript.Shell; " + $"$s = $ws.CreateShortcut('{publicLnk.Replace("'", "''")}'); " + $"$s.TargetPath = '{cleanTarget}'; {workDirSnippet} $s.Save(); " + $"$s2 = $ws.CreateShortcut('{startMenuLnk.Replace("'", "''")}'); " + $"$s2.TargetPath = '{cleanTarget}'; {workDirSnippet2} $s2.Save();";
+                await RunPowerShellAsync(script, $"Creating Shortcut: {linkName}", true);
                 await Task.Delay(500);
-
                 bool exeExists = !string.IsNullOrEmpty(targetExePath) && File.Exists(targetExePath);
                 if (exeExists)
                 {
@@ -1318,13 +1243,7 @@ Require all granted
 
         private async Task InstallWinSCP()
         {
-            await SmartInstall(
-                 "WinSCP",
-                 "WinSCP.exe",
-                 "/VERYSILENT /NORESTART /ALLUSERS",
-                 "WinSCP"
-            );
-
+            await SmartInstall("WinSCP", "WinSCP.exe", "/VERYSILENT /NORESTART /ALLUSERS", "WinSCP");
             int posCount = await GetOrPromptPosCountAsync();
             await GeneratePOSConfigurations(posCount);
             IncrementProgress();
@@ -1332,26 +1251,27 @@ Require all granted
 
         private string GetSubnetPrefix(string? ip = null)
         {
-            string sourceIp = !string.IsNullOrWhiteSpace(ip)
-                ? ip
-                : (!string.IsNullOrWhiteSpace(_consoIpInput) ? _consoIpInput : TargetIp);
-
+            string sourceIp = !string.IsNullOrWhiteSpace(ip) ? ip : (!string.IsNullOrWhiteSpace(_consoIpInput) ? _consoIpInput : TargetIp);
             if (!string.IsNullOrWhiteSpace(sourceIp))
             {
                 string clean = sourceIp.Trim();
-                if (clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) clean = clean.Substring(7);
-                if (clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) clean = clean.Substring(8);
+                if (clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                    clean = clean.Substring(7);
+                if (clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    clean = clean.Substring(8);
                 int slashIdx = clean.IndexOf('/');
-                if (slashIdx >= 0) clean = clean.Substring(0, slashIdx);
+                if (slashIdx >= 0)
+                    clean = clean.Substring(0, slashIdx);
                 int colonIdx = clean.IndexOf(':');
-                if (colonIdx >= 0) clean = clean.Substring(0, colonIdx);
-
+                if (colonIdx >= 0)
+                    clean = clean.Substring(0, colonIdx);
                 var parts = clean.Split('.');
                 if (parts.Length >= 3 && parts.Take(3).All(p => int.TryParse(p, out int n) && n >= 0 && n <= 255))
                 {
                     return $"{parts[0]}.{parts[1]}.{parts[2]}";
                 }
             }
+
             return "192.168.1";
         }
 
@@ -1360,10 +1280,7 @@ Require all granted
             string storeIp = await GetOrPromptConsoIpAsync();
             string subnet = GetSubnetPrefix(storeIp);
             string consoIp = $"{subnet}.50";
-
             Log($"   [CONFIG] Generating dynamic POS configurations for {posCount} terminals (Subnet: {subnet}, Conso: {consoIp})...");
-
-            // --- 1. Dynamic WinSCP.ini & Registry Generation ---
             try
             {
                 var sb = new System.Text.StringBuilder();
@@ -1373,24 +1290,18 @@ Require all granted
                 sb.AppendLine("[Configuration\\Interface]");
                 sb.AppendLine("Interface=1");
                 sb.AppendLine();
-
-                // Conso Server session
                 sb.AppendLine("[Sessions\\Conso%20Server]");
                 sb.AppendLine($"HostName={consoIp}");
                 sb.AppendLine("PortNumber=22");
                 sb.AppendLine("FSProtocol=0");
                 sb.AppendLine("UserName=");
                 sb.AppendLine();
-
-                // Zone 11 session
                 sb.AppendLine("[Sessions\\Zone%2011]");
                 sb.AppendLine($"HostName={consoIp}");
                 sb.AppendLine("PortNumber=22");
                 sb.AppendLine("FSProtocol=0");
                 sb.AppendLine("UserName=");
                 sb.AppendLine();
-
-                // POS 1 to N sessions
                 for (int i = 1; i <= posCount; i++)
                 {
                     string posIp = $"{subnet}.{50 + i}";
@@ -1403,13 +1314,7 @@ Require all granted
                 }
 
                 string iniContent = sb.ToString();
-                string[] winScpDirs =
-                [
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinSCP"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinSCP")
-                ];
-
+                string[] winScpDirs = [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinSCP"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinSCP")];
                 bool written = false;
                 foreach (string dir in winScpDirs)
                 {
@@ -1445,11 +1350,9 @@ Require all granted
                     }
                 }
 
-                // Also write to Windows Registry for WinSCP so sessions are available in Registry mode
                 try
                 {
                     const string winscpSessionsKey = @"Software\Martin Prikryl\WinSCP 2\Sessions";
-
                     void SaveWinScpSession(string sessionName, string host, int port)
                     {
                         string encodedSession = Uri.EscapeDataString(sessionName).Replace("+", "%20");
@@ -1465,7 +1368,6 @@ Require all granted
 
                     SaveWinScpSession("Zone 11", consoIp, 22);
                     SaveWinScpSession("Conso Server", consoIp, 22);
-
                     for (int i = 1; i <= posCount; i++)
                     {
                         string posIp = $"{subnet}.{50 + i}";
@@ -1484,16 +1386,13 @@ Require all granted
                 Log($"   [ERROR] WinSCP configuration generation error: {ex.Message}");
             }
 
-            // --- 2. Dynamic PuTTY Sessions / Registry Generation ---
             try
             {
                 var forwardings = new List<string>
                 {
                     $"L10000={consoIp}:80",
                     $"L5900={consoIp}:5900",
-                    $"L5984={consoIp}:5984"
-                };
-
+                    $"L5984={consoIp}:5984"};
                 for (int i = 1; i <= posCount; i++)
                 {
                     string posIp = $"{subnet}.{50 + i}";
@@ -1504,7 +1403,6 @@ Require all granted
 
                 string portForwardingStr = string.Join(",", forwardings);
                 const string puttySessionsKey = @"Software\SimonTatham\PuTTY\Sessions";
-
                 void SaveSession(string sessionName, string host, int port, string? pf = null)
                 {
                     string encodedSession = Uri.EscapeDataString(sessionName).Replace("+", "%20");
@@ -1524,7 +1422,6 @@ Require all granted
 
                 SaveSession("Zone 11", consoIp, 22, portForwardingStr);
                 SaveSession("Conso Server", consoIp, 22);
-
                 for (int i = 1; i <= posCount; i++)
                 {
                     string posIp = $"{subnet}.{50 + i}";
@@ -1543,9 +1440,7 @@ Require all granted
         {
             Log("------------------------------------------------");
             Log("   [INIT] Configuring Chrome Bookmarks (CBM)...");
-
             string ownIp = await GetOrPromptConsoIpAsync();
-
             if (string.IsNullOrWhiteSpace(ownIp))
             {
                 Log("   [SKIP] IP missing. Chrome Bookmarks configuration skipped.");
@@ -1554,26 +1449,25 @@ Require all granted
             }
 
             string cleanIp = ownIp.Trim();
-            if (cleanIp.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) cleanIp = cleanIp.Substring(7);
-            if (cleanIp.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) cleanIp = cleanIp.Substring(8);
+            if (cleanIp.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                cleanIp = cleanIp.Substring(7);
+            if (cleanIp.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                cleanIp = cleanIp.Substring(8);
             int slashIdx = cleanIp.IndexOf('/');
-            if (slashIdx >= 0) cleanIp = cleanIp.Substring(0, slashIdx);
+            if (slashIdx >= 0)
+                cleanIp = cleanIp.Substring(0, slashIdx);
             int colonIdx = cleanIp.IndexOf(':');
-            if (colonIdx >= 0) cleanIp = cleanIp.Substring(0, colonIdx);
-
+            if (colonIdx >= 0)
+                cleanIp = cleanIp.Substring(0, colonIdx);
             string scriptName = "cbm.ps1";
             string tempDir = @"C:\Assets\PG_CBM_Exec";
-
             try
             {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, true);
                 Directory.CreateDirectory(tempDir);
-
-                // IMPORTANT: Always use the application's bundled cbm.ps1 or embedded script.
-                // Do NOT use ResolveAssetPath which can pick up stale/broken scripts in C:\Assets!
                 string appBaseScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, scriptName);
                 string targetScriptPath = Path.Combine(tempDir, scriptName);
-
                 if (File.Exists(appBaseScript))
                 {
                     File.Copy(appBaseScript, targetScriptPath, true);
@@ -1583,18 +1477,18 @@ Require all granted
                     await File.WriteAllTextAsync(targetScriptPath, GetEmbeddedCbmScript());
                 }
 
-                // Also update C:\Assets\cbm.ps1 if C:\Assets exists so any external runner is also fixed
                 if (Directory.Exists(@"C:\Assets"))
                 {
                     try
                     {
                         File.Copy(targetScriptPath, @"C:\Assets\cbm.ps1", true);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
 
                 Log($"   [EXEC] Running CBM Script with IP: {cleanIp}...");
-
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
@@ -1605,7 +1499,6 @@ Require all granted
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
-
                 await RunCustomProcess(startInfo, "Chrome Bookmark Configuration");
                 Log("   [SUCCESS] CBM Script completed.");
             }
@@ -1613,6 +1506,7 @@ Require all granted
             {
                 Log($"   [ERROR] CBM Execution Failed: {ex.Message}");
             }
+
             IncrementProgress();
         }
 
@@ -1633,7 +1527,6 @@ Write-Host "Closing Chrome..." -ForegroundColor Yellow
 Stop-Process -Name $ChromeProcessName -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Clean OwnIP for Purepos Conso URL
 $cleanIp = $OwnIP.Trim().TrimEnd('/')
 if ($cleanIp.StartsWith("http://", [System.StringComparison]::OrdinalIgnoreCase)) {
     $cleanIp = $cleanIp.Substring(7)
@@ -1646,7 +1539,6 @@ if ($cleanIp.EndsWith("/purepos_conso/login", [System.StringComparison]::Ordinal
     $consoUrl = "http://$cleanIp/purepos_conso/login"
 }
 
-# Construct Final Bookmark Structure (v3.0 - Shelftag, TPLinux-Kiosk, IT_Tools, Conso List folders removed)
 $NewChildren = @(
     @{
         date_added = "13300000000000000"
@@ -1730,7 +1622,6 @@ foreach ($profileDir in ($chromeProfiles | Select-Object -Unique)) {
         $Json.roots | Add-Member -MemberType NoteProperty -Name "bookmark_bar" -Value ([PSCustomObject]@{ children = @(); id = "1"; name = "Bookmarks Bar"; type = "folder" })
     }
 
-    # Clean existing matching children to avoid duplicates on re-run
     $targetFolderNames = @("Shelftag", "TPLinux-Kiosk", "IT_Tools", "Conso List", "Purepos Conso", "My Portal", "PCFPROv2", "Local Conso", "PurePOS HQ", "PCFPRO")
     $keptChildren = @()
     if ($Json.roots.bookmark_bar.children) {
@@ -1747,7 +1638,6 @@ foreach ($profileDir in ($chromeProfiles | Select-Object -Unique)) {
     $outputJson = $Json | ConvertTo-Json -Depth 100
     [System.IO.File]::WriteAllText($BookmarkFile, $outputJson, [System.Text.Encoding]::UTF8)
 
-    # Enforce Bookmark Bar visibility
     Write-Host "Enforcing Bookmark Bar visibility in $profileDir..." -ForegroundColor Cyan
     $PrefsJson = if (Test-Path $PreferencesFile) {
         try { Get-Content $PreferencesFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { [PSCustomObject]@{} }
@@ -1780,9 +1670,10 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
         private async Task InstallBartenderDrivers(IEnumerable<string> selectedApps)
         {
             string? selectedDriver = null;
-            if (selectedApps.Contains("Argox Driver")) selectedDriver = "Argox Driver";
-            else if (selectedApps.Contains("Zebra Driver")) selectedDriver = "Zebra Driver";
-
+            if (selectedApps.Contains("Argox Driver"))
+                selectedDriver = "Argox Driver";
+            else if (selectedApps.Contains("Zebra Driver"))
+                selectedDriver = "Zebra Driver";
             if (string.IsNullOrEmpty(selectedDriver))
             {
                 Log("   [SKIP] No Bartender driver selected.");
@@ -1790,14 +1681,11 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             }
 
             Log($"   [INIT] Installing {selectedDriver}...");
-
             string? driverExe = selectedDriver switch
             {
                 "Argox Driver" => ResolveAssetPath("argox_drvr.exe"),
                 "Zebra Driver" => ResolveAssetPath("zebra_drvr.exe"),
-                _ => throw new InvalidOperationException("Invalid driver selection")
-            };
-
+                _ => throw new InvalidOperationException("Invalid driver selection")};
             if (!string.IsNullOrEmpty(driverExe) && File.Exists(driverExe))
             {
                 await RunProcessAsync(driverExe, "", $"Installing {selectedDriver} (Interactive)");
@@ -1806,17 +1694,17 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             {
                 Log($"   [ERROR] {selectedDriver} installer not found in Assets.");
             }
+
             IncrementProgress();
         }
+
         private async Task InstallBartender(IEnumerable<string> selectedApps)
         {
             string? selectedVersion = null;
             string installerExe = null!;
-
             if (selectedApps.Contains("Bartender 10.1"))
             {
                 selectedVersion = "Bartender 10.1";
-
                 installerExe = "bt10.1.exe";
             }
             else if (selectedApps.Contains("Bartender 2016"))
@@ -1837,25 +1725,21 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             }
 
             Log($"   [INIT] Starting {selectedVersion} Installation...");
-
-            string? installerPath = ResolveAssetPath(installerExe);
-
+            string? installerPath = await EnsureAssetAsync(installerExe);
             if (string.IsNullOrEmpty(installerPath) || !File.Exists(installerPath))
             {
                 Log($"   [ERROR] {installerExe} not found in Assets.");
                 return;
             }
 
-            await RunProcessAsync(installerPath, "/S", $"Installing {selectedVersion}");
+            if (!await RunProcessAsync(installerPath, "/S", $"Installing {selectedVersion}"))
+                return;
             if (selectedVersion == "Bartender 10.1")
             {
                 await Task.Delay(3000);
                 Log("   [PATCH] Applying BarTend.exe patch for Bartender 10.1...");
-
-
-                string? patchedExe = ResolveAssetPath("bartend.exe");
+                string? patchedExe = await EnsureAssetAsync("bartend.exe");
                 string targetExe = @"C:\Program Files (x86)\Seagull\BarTender Suite\BarTend.exe";
-
                 if (!string.IsNullOrEmpty(patchedExe) && File.Exists(patchedExe))
                 {
                     try
@@ -1887,9 +1771,8 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
                 }
             }
 
-            string? btZip = ResolveAssetPath("bt.zip");
+            string? btZip = await EnsureAssetAsync("bt.zip");
             string templatesDest = @"C:\Bartender Templates";
-
             if (!string.IsNullOrEmpty(btZip) && File.Exists(btZip))
             {
                 Log("   [DEPLOY] Setting up Bartender Templates...");
@@ -1897,7 +1780,6 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
                 {
                     if (Directory.Exists(templatesDest))
                         Directory.Delete(templatesDest, true);
-
                     Directory.CreateDirectory(templatesDest);
                     await ExtractWithProgress(btZip, templatesDest, CreateStepProgress("Extracting BarTender Templates"));
                     Log($"   [SUCCESS] Templates extracted to {templatesDest}");
@@ -1911,25 +1793,23 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             {
                 Log("   [WARN] bt.zip (Templates) not found in Assets.");
             }
+
             IncrementProgress();
         }
+
         private void EnsureWpsShortcutsForAllUsers()
         {
             try
             {
                 string wpsInstallDir = @"C:\Program Files\WPS Office";
-                if (!Directory.Exists(wpsInstallDir)) return;
-
+                if (!Directory.Exists(wpsInstallDir))
+                    return;
                 string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
                 string publicStartMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "WPS Office");
-
-                if (!Directory.Exists(publicStartMenu)) Directory.CreateDirectory(publicStartMenu);
-
+                if (!Directory.Exists(publicStartMenu))
+                    Directory.CreateDirectory(publicStartMenu);
                 string[] wpsExeNames = ["wps.exe", "wpp.exe", "et.exe"];
-                var exePaths = Directory.GetFiles(wpsInstallDir, "*.exe", SearchOption.AllDirectories)
-                    .Where(f => wpsExeNames.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
-                    .ToArray();
-
+                var exePaths = Directory.GetFiles(wpsInstallDir, "*.exe", SearchOption.AllDirectories).Where(f => wpsExeNames.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)).ToArray();
                 foreach (var exePath in exePaths)
                 {
                     string name = Path.GetFileNameWithoutExtension(exePath);
@@ -1940,20 +1820,15 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
                         "et" => "WPS Spreadsheets",
                         _ => name
                     };
-
                     string desktopLnk = Path.Combine(publicDesktop, $"{friendlyName}.lnk");
                     string startLnk = Path.Combine(publicStartMenu, $"{friendlyName}.lnk");
-
                     if (!File.Exists(desktopLnk) || !File.Exists(startLnk))
                     {
-                        string script = $"$ws = New-Object -ComObject WScript.Shell; " +
-                                        $"$s = $ws.CreateShortcut('{desktopLnk}'); $s.TargetPath = '{exePath}'; $s.WorkingDirectory = '{wpsInstallDir}'; $s.Save(); " +
-                                        $"$s2 = $ws.CreateShortcut('{startLnk}'); $s2.TargetPath = '{exePath}'; $s2.WorkingDirectory = '{wpsInstallDir}'; $s2.Save();";
-
+                        string script = $"$ws = New-Object -ComObject WScript.Shell; " + $"$s = $ws.CreateShortcut('{desktopLnk}'); $s.TargetPath = '{exePath}'; $s.WorkingDirectory = '{wpsInstallDir}'; $s.Save(); " + $"$s2 = $ws.CreateShortcut('{startLnk}'); $s2.TargetPath = '{exePath}'; $s2.WorkingDirectory = '{wpsInstallDir}'; $s2.Save();";
                         var psi = new ProcessStartInfo
                         {
                             FileName = "powershell.exe",
-                            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
+                            Arguments = PowerShellArguments(script),
                             UseShellExecute = false,
                             CreateNoWindow = true
                         };
@@ -1961,6 +1836,7 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
                         p?.WaitForExit(5000);
                     }
                 }
+
                 Log("   [SUCCESS] WPS Office shortcuts ensured for All Users.");
             }
             catch (Exception ex)
@@ -1975,7 +1851,7 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
+                Arguments = PowerShellArguments(script),
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -1986,11 +1862,14 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
         private async Task InstallWampVersion(IEnumerable<string> selectedApps)
         {
             string? selectedVersion = null;
-            if (selectedApps.Contains("Wamp 1.7.2")) selectedVersion = "Wamp 1.7.2";
-            else if (selectedApps.Contains("Wamp 2")) selectedVersion = "Wamp 2";
-            else if (selectedApps.Contains("Wamp 2.5")) selectedVersion = "Wamp 2.5";
-            else if (selectedApps.Contains("Wampserver 3.4.0")) selectedVersion = "Wampserver 3.4.0";
-
+            if (selectedApps.Contains("Wamp 1.7.2"))
+                selectedVersion = "Wamp 1.7.2";
+            else if (selectedApps.Contains("Wamp 2"))
+                selectedVersion = "Wamp 2";
+            else if (selectedApps.Contains("Wamp 2.5"))
+                selectedVersion = "Wamp 2.5";
+            else if (selectedApps.Contains("Wampserver 3.4.0"))
+                selectedVersion = "Wampserver 3.4.0";
             if (string.IsNullOrEmpty(selectedVersion))
             {
                 Log("   [SKIP] No Wamp version selected.");
@@ -1998,17 +1877,16 @@ Start-Process $chromeExe -ErrorAction SilentlyContinue
             }
 
             Log($"   [INIT] Installing {selectedVersion}...");
-
             switch (selectedVersion)
             {
                 case "Wamp 1.7.2":
-                    await SmartInstall("Wamp5 1.7.2", "wamp5.exe", "/S", "WampServer");
+                    await SmartInstall("Wamp 1.7.2", "wamp5.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
                     break;
                 case "Wamp 2":
-                    await SmartInstall("WampServer 2", "wamp2.exe", "/S", "WampServer");
+                    await SmartInstall("Wamp 2", "wamp2.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=\"C:\\wamp\"", "WampServer");
                     break;
                 case "Wamp 2.5":
-                    await SmartInstall("WampServer 2.5", "wamp2.5.exe", "/S", "WampServer");
+                    await SmartInstall("Wamp 2.5", "wamp2.5.exe", "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", "WampServer");
                     break;
                 case "Wampserver 3.4.0":
                     await InstallWampServer();

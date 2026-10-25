@@ -14,33 +14,38 @@ namespace PGInstaller.Viewmodel
     {
         [ObservableProperty]
         private string? _selectedAntivirus;
-
         public Dictionary<string, string> AntivirusMap { get; } = new Dictionary<string, string>
         {
-            { "Malwarebytes AdwCleaner", "adwcleaner.exe" },
-            { "Symantec Endpoint Protection (Windows Server)", "symantec.zip" },
-            { "Avast Premium", "avast.zip" }
+            {
+                "Malwarebytes AdwCleaner",
+                "adwcleaner.exe"
+            },
+            {
+                "Symantec Endpoint Protection (Windows Server)",
+                "symantec.zip"
+            },
+            {
+                "Avast Premium",
+                "avast.zip"
+            }
         };
-
         public ObservableCollection<string> AntivirusList => new(AntivirusMap.Keys);
 
         [RelayCommand(CanExecute = nameof(CanRunTool))]
         private async Task InstallAntivirus()
         {
-            if (IsBusy) return;
-            if (string.IsNullOrEmpty(SelectedAntivirus)) return;
-
+            if (IsBusy)
+                return;
+            if (string.IsNullOrEmpty(SelectedAntivirus))
+                return;
             IsBusy = true;
             NotifyCommands();
-
             try
             {
                 if (AntivirusMap.TryGetValue(SelectedAntivirus, out string? fileName))
                 {
                     string relativePath = Path.Combine("av", fileName);
                     string? fullSourcePath = ResolveAssetPath(relativePath) ?? ResolveAssetPath(fileName);
-
-                    // Lazy on-demand extraction if not found in Assets
                     if (string.IsNullOrEmpty(fullSourcePath) || !File.Exists(fullSourcePath))
                     {
                         await ExtractSpecificFile(null, $"*{fileName}*");
@@ -54,15 +59,20 @@ namespace PGInstaller.Viewmodel
                             Log($"   [ERROR] {fileName} not found in Assets/av folder.");
                             return;
                         }
-                        string extractDir = @"C:\Assets\AV_Install";
 
+                        string extractDir = @"C:\Assets\AV_Install";
                         if (Directory.Exists(extractDir))
                         {
-                            try { Directory.Delete(extractDir, true); } catch { }
+                            try
+                            {
+                                Directory.Delete(extractDir, true);
+                            }
+                            catch
+                            {
+                            }
                         }
 
                         Directory.CreateDirectory(extractDir);
-
                         Log($"   [EXTRACT] Unzipping {fileName}...");
                         try
                         {
@@ -77,11 +87,7 @@ namespace PGInstaller.Viewmodel
                         if (SelectedAntivirus.Contains("Avast", StringComparison.OrdinalIgnoreCase))
                         {
                             Log("   [INSTALL] Starting Avast Premium Silent Install...");
-
-                            var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault()
-                                          ?? Directory.GetFiles(extractDir, "*Silent*Install*.cmd", SearchOption.AllDirectories).FirstOrDefault()
-                                          ?? Directory.GetFiles(extractDir, "*Silent*Install*.bat", SearchOption.AllDirectories).FirstOrDefault();
-
+                            var cmdFile = Directory.GetFiles(extractDir, "Silent Installing.cmd", SearchOption.AllDirectories).FirstOrDefault() ?? Directory.GetFiles(extractDir, "*Silent*Install*.cmd", SearchOption.AllDirectories).FirstOrDefault() ?? Directory.GetFiles(extractDir, "*Silent*Install*.bat", SearchOption.AllDirectories).FirstOrDefault();
                             if (cmdFile != null)
                             {
                                 Log($"   [EXEC] Running '{Path.GetFileName(cmdFile)}'...");
@@ -100,10 +106,7 @@ namespace PGInstaller.Viewmodel
                             }
                             else
                             {
-                                var avastExe = Directory.GetFiles(extractDir, "*Avast*Premium*.exe", SearchOption.AllDirectories).FirstOrDefault()
-                                               ?? Directory.GetFiles(extractDir, "Avast.Premium.exe", SearchOption.AllDirectories).FirstOrDefault()
-                                               ?? Directory.GetFiles(extractDir, "*Avast*.exe", SearchOption.AllDirectories).FirstOrDefault();
-
+                                var avastExe = Directory.GetFiles(extractDir, "*Avast*Premium*.exe", SearchOption.AllDirectories).FirstOrDefault() ?? Directory.GetFiles(extractDir, "Avast.Premium.exe", SearchOption.AllDirectories).FirstOrDefault() ?? Directory.GetFiles(extractDir, "*Avast*.exe", SearchOption.AllDirectories).FirstOrDefault();
                                 if (avastExe != null)
                                 {
                                     Log($"   [EXEC] Executing '{Path.GetFileName(avastExe)}' in silent mode...");
@@ -119,7 +122,6 @@ namespace PGInstaller.Viewmodel
                         {
                             Log("   [INSTALL] Starting Symantec Endpoint Protection Silent Install...");
                             var setupExe = Directory.GetFiles(extractDir, "Setup.exe", SearchOption.AllDirectories).FirstOrDefault();
-
                             if (setupExe != null)
                             {
                                 string args = "/s /v\"/qn /norestart\"";
@@ -156,6 +158,10 @@ namespace PGInstaller.Viewmodel
                 {
                     Log($"   [ERROR] Configuration not found for: {SelectedAntivirus}");
                 }
+            }
+            catch (Exception ex)
+            {
+                Log($"   [ERROR] Antivirus installation failed: {ex.Message}");
             }
             finally
             {

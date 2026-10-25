@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using System.Diagnostics;
@@ -9,7 +9,6 @@ namespace PGInstaller.Viewmodel
     {
         [ObservableProperty]
         private bool _isRestorePointEnabled = true;
-
         private async Task CreateSystemRestorePoint()
         {
             Log("   [BACKUP] Creating System Restore Point...");
@@ -17,8 +16,7 @@ namespace PGInstaller.Viewmodel
             {
                 string cmd = "Checkpoint-Computer -Description \"PG-Installer Auto Point\" -RestorePointType \"MODIFY_SETTINGS\"";
                 string script = $"try {{ Enable-ComputerRestore -Drive \"C:\\\"; {cmd} }} catch {{ Write-Error $_ }}";
-
-                await RunProcessAsync("powershell", $"-Command \"{script}\"", "Restore Point Creation", true);
+                await RunPowerShellAsync(script, "Restore Point Creation", true);
             }
             catch (Exception ex)
             {
@@ -59,7 +57,6 @@ namespace PGInstaller.Viewmodel
         private void RunSystemRestore()
         {
             Log("   [LAUNCH] Opening System Restore...");
-
             if (TryStart("rstrui.exe"))
             {
                 Log("   [OK] System Restore Wizard opened.");
@@ -96,10 +93,8 @@ namespace PGInstaller.Viewmodel
                     FileName = fileName,
                     UseShellExecute = true
                 };
-
                 if (!string.IsNullOrWhiteSpace(args))
                     psi.Arguments = args;
-
                 Process.Start(psi);
                 return true;
             }

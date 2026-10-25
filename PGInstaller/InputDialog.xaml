@@ -1,91 +1,32 @@
-﻿<Window
-    x:Class="PGInstaller.InputDialog"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Configuration"
-    Width="450"
-    AllowsTransparency="True"
-    Background="Transparent"
-    ResizeMode="NoResize"
-    SizeToContent="Height"
-    WindowStartupLocation="CenterOwner"
-    WindowStyle="None">
-
-    <Border
-        Background="{StaticResource SurfaceBrush}"
-        BorderBrush="{StaticResource BorderBrush}"
-        BorderThickness="1"
-        CornerRadius="16"
-        Effect="{StaticResource SoftShadow}">
-
+<?xml version="1.0" encoding="utf-8"?>
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="PGInstaller.InputDialog" Title="Configuration" Width="450" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize" SizeToContent="Height" WindowStartupLocation="CenterOwner" WindowStyle="None">
+    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Effect="{StaticResource SoftShadow}">
         <Border.Triggers>
             <EventTrigger RoutedEvent="FrameworkElement.Loaded">
                 <BeginStoryboard>
                     <Storyboard>
-                        <DoubleAnimation
-                            Storyboard.TargetProperty="Opacity"
-                            From="0"
-                            To="1"
-                            Duration="0:0:0.3" />
+                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.3"/>
                     </Storyboard>
                 </BeginStoryboard>
             </EventTrigger>
         </Border.Triggers>
-
         <Grid Margin="32">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-
-            <!--  Question  -->
-            <TextBlock
-                x:Name="TxtQuestion"
-                Grid.Row="0"
-                Margin="0,0,0,16"
-                FontSize="18"
-                Style="{StaticResource PageTitleStyle}"
-                Text="Configuration"
-                TextWrapping="Wrap" />
-
-            <!--  Input  -->
-            <TextBox
-                x:Name="TxtAnswer"
-                Grid.Row="1"
-                Margin="0,0,0,24"
-                Style="{StaticResource ModernTextBox}" />
-
-            <!--  Buttons  -->
+            <TextBlock x:Name="TxtQuestion" Grid.Row="0" Margin="0,0,0,16" FontSize="18" Style="{StaticResource PageTitleStyle}" Text="Configuration" TextWrapping="Wrap"/>
+            <TextBox x:Name="TxtAnswer" Grid.Row="1" Margin="0,0,0,24" Style="{StaticResource ModernTextBox}"/>
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <Button
-                    x:Name="BtnOk"
-                    Grid.Column="1"
-                    Width="100"
-                    Height="40"
-                    Margin="0,0,12,0"
-                    Click="BtnOk_Click"
-                    Content="OK"
-                    IsDefault="True"
-                    Style="{StaticResource PrimaryButton}" />
-
-                <Button
-                    x:Name="BtnCancel"
-                    Grid.Column="2"
-                    Width="100"
-                    Height="40"
-                    Click="BtnCancel_Click"
-                    Content="CANCEL"
-                    IsCancel="True"
-                    Style="{StaticResource SecondaryButton}" />
+                <Button x:Name="BtnOk" Grid.Column="1" Width="100" Height="40" Margin="0,0,12,0" Click="BtnOk_Click" Content="OK" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+                <Button x:Name="BtnCancel" Grid.Column="2" Width="100" Height="40" Click="BtnCancel_Click" Content="CANCEL" IsCancel="True" Style="{StaticResource SecondaryButton}"/>
             </Grid>
         </Grid>
-
     </Border>
 </Window>

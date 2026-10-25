@@ -12,7 +12,6 @@ namespace PGInstaller
         public string Username => TxtUsername.Text.Trim();
         public string PasswordText => TxtPassword.Password;
         public SecureString Password => TxtPassword.SecurePassword;
-
         public Func<string, Task<(bool valid, string message)>>? ValidateAction { get; set; }
         public Func<string, string, string, Task<(bool success, bool rebootRequired, string message)>>? JoinAction { get; set; }
 
@@ -20,7 +19,6 @@ namespace PGInstaller
         {
             InitializeComponent();
             TxtDomain.Text = !string.IsNullOrWhiteSpace(defaultDomain) ? defaultDomain : "puregold.com.ph";
-
             Loaded += (_, _) =>
             {
                 if (string.IsNullOrWhiteSpace(TxtDomain.Text))
@@ -70,27 +68,19 @@ namespace PGInstaller
             LoadingBar.Visibility = Visibility.Visible;
             BtnJoin.IsEnabled = false;
             BtnCancel.IsEnabled = false;
-
             try
             {
                 if (ValidateAction != null)
                 {
                     SetStatus($"Checking network connectivity and DNS for '{Domain}'...", false);
                     var valResult = await ValidateAction(Domain);
-
                     if (!valResult.valid)
                     {
                         SetStatus(valResult.message, true);
                         LoadingBar.Visibility = Visibility.Collapsed;
                         BtnJoin.IsEnabled = true;
                         BtnCancel.IsEnabled = true;
-
-                        var proceed = MessageBox.Show(
-                            $"{valResult.message}\n\nDo you want to proceed with domain join anyway?",
-                            "Domain Pre-Flight Warning",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Warning);
-
+                        var proceed = MessageBox.Show($"{valResult.message}\n\nDo you want to proceed with domain join anyway?", "Domain Pre-Flight Warning", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                         if (proceed != MessageBoxResult.Yes)
                         {
                             return;
@@ -103,11 +93,9 @@ namespace PGInstaller
                 }
 
                 SetStatus($"Joining domain '{Domain}'...", false);
-
                 if (JoinAction != null)
                 {
                     var result = await JoinAction(Domain, Username, PasswordText);
-
                     if (result.success)
                     {
                         SetStatus(result.message, false);

@@ -16,49 +16,31 @@ namespace PGInstaller.Viewmodel
         {
             string currentName = Environment.MachineName;
             bool isDefaultName = Regex.IsMatch(currentName, @"^(DESKTOP-[A-Z0-9]{7}|WIN-[A-Z0-9]{4,})$", RegexOptions.IgnoreCase);
-
             if (!isDefaultName)
             {
                 Log($"   [INFO] Computer name is already customized ('{currentName}'). Skipping rename prompt.");
                 return true;
             }
 
-            var result = MessageBox.Show(
-                $"This computer has a default name: '{currentName}'.\n\nWould you like to rename it now?",
-                "Computer Rename",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
+            var result = MessageBox.Show($"This computer has a default name: '{currentName}'.\n\nWould you like to rename it now?", "Computer Rename", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (result == MessageBoxResult.Yes)
             {
-                string newName = await Application.Current.Dispatcher.InvokeAsync(() =>
-                    ShowInputDialog("Enter new computer name:", currentName));
-
+                string newName = await Application.Current.Dispatcher.InvokeAsync(() => ShowInputDialog("Enter new computer name:", currentName));
                 if (!string.IsNullOrWhiteSpace(newName) && !newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
                 {
                     bool renamed = await ExecuteRenameComputerInternal(newName);
                     if (renamed)
                     {
-                        var restart = MessageBox.Show(
-                            $"Computer has been renamed to '{newName}'.\n\nA restart is required to apply the new computer name.\n\nRestart now?",
-                            "Restart Required",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Information);
-
+                        var restart = MessageBox.Show($"Computer has been renamed to '{newName}'.\n\nA restart is required to apply the new computer name.\n\nRestart now?", "Restart Required", MessageBoxButton.YesNo, MessageBoxImage.Information);
                         if (restart == MessageBoxResult.Yes)
                         {
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = "shutdown.exe",
-                                Arguments = "/r /t 0",
-                                CreateNoWindow = true,
-                                UseShellExecute = false
-                            });
-                            return false; 
+                            Process.Start(new ProcessStartInfo { FileName = "shutdown.exe", Arguments = "/r /t 0", CreateNoWindow = true, UseShellExecute = false });
+                            return false;
                         }
                     }
                 }
             }
+
             return true;
         }
 
@@ -67,18 +49,19 @@ namespace PGInstaller.Viewmodel
             string currentName = Environment.MachineName;
             if (string.IsNullOrWhiteSpace(newName) || newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
                 return true;
-
             newName = newName.Trim();
-            Log($"   [INIT] Renaming computer from '{currentName}' to '{newName}'...");
+            if (newName.Length > 15 || !Regex.IsMatch(newName, @"^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$") || newName.All(char.IsDigit))
+            {
+                Log("   [ERROR] Use a computer name of 1–15 letters, digits, or hyphens, starting and ending with a letter or digit. It cannot be entirely numeric.");
+                return false;
+            }
 
+            Log($"   [INIT] Renaming computer from '{currentName}' to '{newName}'...");
             bool success = false;
             try
             {
-                // 1. Primary: Modern PowerShell Rename-Computer (Reliable on Win10/11)
                 string psCmd = $"Rename-Computer -NewName '{newName}' -Force -ErrorAction Stop";
-                success = await RunProcessAsync("powershell", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psCmd}\"", "Renaming Computer (PowerShell)", true);
-
-                // 2. Fallback: Native WMI Win32_ComputerSystem API
+                success = await RunPowerShellAsync(psCmd, "Renaming Computer (PowerShell)", true);
                 if (!success)
                 {
                     Log("   [FALLBACK] Attempting WMI ComputerSystem Rename...");
@@ -111,7 +94,6 @@ namespace PGInstaller.Viewmodel
                     });
                 }
 
-                // 3. Fallback: wmic (for older Windows installations)
                 if (!success)
                 {
                     success = await RunProcessAsync("wmic", $"computersystem where name=\"{currentName}\" call rename name=\"{newName}\"", "Renaming Computer (WMIC)", true);

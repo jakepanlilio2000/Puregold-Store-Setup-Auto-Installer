@@ -11,19 +11,12 @@ namespace PGInstaller.Viewmodel
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RunDefenderCommand))]
         private bool _isDefenderPresent;
-
         private async Task CheckDefender()
         {
             Log("   [INIT] Checking Windows Defender runtime state...");
-
             var output = await RunProcessCaptureAsync("sc", "query WinDefend");
-
-            bool running =
-                output.Contains("STATE", StringComparison.OrdinalIgnoreCase) &&
-                output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
-
+            bool running = output.Contains("STATE", StringComparison.OrdinalIgnoreCase) && output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
             IsDefenderPresent = running;
-
             if (running)
                 Log("   [INIT] Windows Defender running. Disabler enabled.");
             else
@@ -37,34 +30,27 @@ namespace PGInstaller.Viewmodel
                 FileName = file,
                 Arguments = args,
                 RedirectStandardOutput = true,
-                RedirectStandardError = true, 
+                RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-
             using var p = Process.Start(psi);
-            if (p == null) return string.Empty;
-
-            string output = await p.StandardOutput.ReadToEndAsync();
-            p.WaitForExit(); 
-
+            if (p == null)
+                return string.Empty;
+            var outputTask = p.StandardOutput.ReadToEndAsync();
+            var errorTask = p.StandardError.ReadToEndAsync();
+            await Task.WhenAll(outputTask, errorTask, p.WaitForExitAsync());
+            string output = await outputTask;
             return output;
         }
 
         private bool CanRunDefender() => IsDefenderPresent && !IsBusy;
-
         [RelayCommand(CanExecute = nameof(CanRunDefender))]
         private async Task RunDefender()
         {
-            if (IsBusy) return;
-
-            var result = MessageBox.Show(
-                "WARNING: Disabling Windows Defender leaves the system vulnerable to threats.\n\n" +
-                "Are you sure you want to proceed?",
-                "Security Warning",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
+            if (IsBusy)
+                return;
+            var result = MessageBox.Show("WARNING: Disabling Windows Defender leaves the system vulnerable to threats.\n\n" + "Are you sure you want to proceed?", "Security Warning", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result != MessageBoxResult.Yes)
             {
                 Log("   [INFO] Defender action cancelled by user.");
@@ -73,22 +59,16 @@ namespace PGInstaller.Viewmodel
 
             IsBusy = true;
             RunDefenderCommand.NotifyCanExecuteChanged();
-
             Log("------------------------------------------------");
             Log("Attempting to Disable Windows Defender...");
-
             try
             {
-                // Lazy extraction: extract only AchillesScript files without full archive unpacking
                 await ExtractSpecificFile(null, "*AchillesScript*");
-
                 string? scriptPath = ResolveAssetPath("AchillesScript.cmd");
-
                 if (!string.IsNullOrEmpty(scriptPath) && File.Exists(scriptPath))
                 {
                     await RunProcessAsync("cmd.exe", $"/c \"{scriptPath}\" apply 4", "Running Achilles (Defender Disabler)");
                     Log("   [SUCCESS] Script executed.");
-
                     await CheckDefender();
                 }
                 else

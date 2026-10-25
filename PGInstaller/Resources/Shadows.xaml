@@ -1,23 +1,6 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <DropShadowEffect
-        x:Key="SoftShadow"
-        BlurRadius="24"
-        Direction="270"
-        Opacity="0.08"
-        ShadowDepth="4"
-        Color="#000000" />
-    <DropShadowEffect
-        x:Key="HoverShadow"
-        BlurRadius="32"
-        Direction="270"
-        Opacity="0.12"
-        ShadowDepth="8"
-        Color="#000000" />
-    <DropShadowEffect
-        x:Key="ButtonShadow"
-        BlurRadius="12"
-        Direction="270"
-        Opacity="0.15"
-        ShadowDepth="2"
-        Color="#00843D" />
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DropShadowEffect x:Key="SoftShadow" BlurRadius="24" Direction="270" Opacity="0.08" ShadowDepth="4" Color="#000000"/>
+    <DropShadowEffect x:Key="HoverShadow" BlurRadius="32" Direction="270" Opacity="0.12" ShadowDepth="8" Color="#000000"/>
+    <DropShadowEffect x:Key="ButtonShadow" BlurRadius="12" Direction="270" Opacity="0.15" ShadowDepth="2" Color="#00843D"/>
 </ResourceDictionary>

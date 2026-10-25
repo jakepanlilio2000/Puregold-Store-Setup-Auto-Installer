@@ -1,0 +1,9 @@
+<Project>
+  <Target Name="PGOfflinePacks" BeforeTargets="ProcessFrameworkReferences;CollectPackageReferences" Condition="'$(PGOfflineBuild)' == 'true'">
+    <ItemGroup>
+      <KnownFrameworkReference Update="@(KnownFrameworkReference)" Condition="'%(KnownFrameworkReference.TargetFramework)' == 'net9.0'" TargetingPackVersion="9.0.20" LatestRuntimeFrameworkVersion="9.0.20" DefaultRuntimeFrameworkVersion="9.0.0" />
+      <KnownAppHostPack Update="@(KnownAppHostPack)" Condition="'%(KnownAppHostPack.TargetFramework)' == 'net9.0'" AppHostPackVersion="9.0.20" />
+      <KnownILLinkPack Update="@(KnownILLinkPack)" Condition="'%(KnownILLinkPack.TargetFramework)' == 'net9.0'" ILLinkPackVersion="9.0.20" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 
 namespace PGInstaller
 {
@@ -11,7 +11,6 @@ namespace PGInstaller
             InitializeComponent();
             TxtQuestion.Text = question;
             TxtAnswer.Text = defaultAnswer;
-
             Loaded += (_, _) =>
             {
                 TxtAnswer.Focus();
